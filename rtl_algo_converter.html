@@ -288,7 +288,11 @@ textarea::placeholder{color:var(--text3);}
 .vtab:hover{color:var(--text2);}
 .vtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .vtab.latest::after{content:'●';color:var(--green);font-size:10px;margin-left:3px;vertical-align:super;}
-.mon-step{display:flex;align-items:flex-start;gap:8px;font-family:var(--mono);font-size:12px;padding:3px 0;}
+.mon-step{display:flex;align-items:flex-start;gap:8px;font-family:var(--mono);font-size:12px;padding:3px 0;flex-wrap:wrap;}
+.mon-reasoning{flex-basis:100%;margin-left:24px;margin-top:3px;border:1px solid var(--border);background:rgba(255,255,255,.025);border-radius:4px;padding:6px 8px;max-height:96px;overflow:auto;white-space:pre-wrap;color:var(--text2);font-family:var(--mono);font-size:11px;line-height:1.45;}
+.mon-reasoning .mon-reasoning-title{color:var(--accent);margin-bottom:4px;}
+.mon-reasoning pre{margin:0;white-space:pre-wrap;word-break:break-word;font:inherit;color:var(--text2);}
+/* .glm-reasoning-live 플로팅 패널 제거됨 — reasoning은 monPanel 내 step box에서만 표시 */
 .mon-icon{width:16px;flex-shrink:0;text-align:center;margin-top:1px;}
 .mon-label{color:var(--text2);flex-shrink:0;min-width:160px;}
 .mon-detail{color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -481,7 +485,7 @@ textarea::placeholder{color:var(--text3);}
   </div>
 
   <!-- μArch 섹션 확인 팝업 -->
-  <div id="uarchSectionPopup" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+  <div id="uarchSectionPopup" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;width:680px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;">
       <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--s2);flex-shrink:0;">
         <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);">μArch 관련 섹션</span>
@@ -642,6 +646,41 @@ textarea::placeholder{color:var(--text3);}
           <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">— Phase 2 섹션 외에 new μArch 원문 전체를 추가 전달 (토큰 증가)</span>
         </label>
 
+        <!-- TO-BE μArch LLM 압축 (기본 ON) -->
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="uArchCompactOpt" checked style="accent-color:var(--accent);" onchange="onUArchCompactOptChange(this.checked)">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text2);">TO-BE uArch Compaction 적용</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">— Summary 분석 시 목차·무관 섹션을 LLM으로 제거, 압축본을 RTL 변환에 사용</span>
+        </label>
+        <!-- 압축 결과 표시 / 다운로드 버튼 (압축 완료 후 노출) -->
+        <div id="uArchCompactResult" style="display:none;align-items:center;gap:8px;padding:5px 8px;background:var(--s2);border-radius:4px;border-left:2px solid var(--accent);">
+          <span id="uArchCompactInfo" style="font-family:var(--mono);font-size:10px;color:var(--text2);flex:1;"></span>
+          <button class="btn btn-g" style="font-size:10px;padding:3px 10px;" onclick="downloadCompactedUarch()">↓ 압축본 저장</button>
+          <button class="btn btn-g" style="font-size:10px;padding:3px 10px;" onclick="clearCompactedUarch()">✕ 초기화</button>
+        </div>
+
+        <!-- 변환 모드 선택 -->
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;background:var(--s2);border-radius:4px;border-left:2px solid var(--purple);">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text2);min-width:60px;padding-top:2px;font-weight:500;">변환 모드</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="runMode" value="cumulative" checked style="accent-color:var(--purple);">
+              <span style="font-family:var(--mono);font-size:10px;color:var(--text);font-weight:500;">누적 단일 (추천)</span>
+              <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">— 파일 1개씩 변환, 이전 변환된 파일을 컨텍스트에 포함 (정확성·일관성 최고)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="runMode" value="single" style="accent-color:var(--purple);">
+              <span style="font-family:var(--mono);font-size:10px;color:var(--text);">단일 컨텍스트</span>
+              <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">— 모든 파일을 한 번의 LLM 호출로 변환 (cross-file 일관성 강)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="runMode" value="sequential" style="accent-color:var(--purple);">
+              <span style="font-family:var(--mono);font-size:10px;color:var(--text);">순차 처리</span>
+              <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">— 파일별 독립 변환 (토큰 효율 ↑, 일관성 ↓)</span>
+            </label>
+          </div>
+        </div>
+
         <!-- 사전 검토 (기본 ON) -->
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
           <input type="checkbox" id="preClarifyOpt" checked style="accent-color:var(--purple);">
@@ -744,7 +783,7 @@ textarea::placeholder{color:var(--text3);}
 </div>
 
 <!-- Impact 미분석 경고 모달 -->
-<div id="impactWarnModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+<div id="impactWarnModal" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px 28px 22px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
       <span style="font-size:22px;">⚠️</span>
@@ -760,7 +799,7 @@ textarea::placeholder{color:var(--text3);}
 </div>
 
 <!-- 재변환 확인 모달 -->
-<div id="rerunConfirmModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+<div id="rerunConfirmModal" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:26px 28px 20px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
       <span style="font-size:22px;">🔄</span>
@@ -778,7 +817,7 @@ textarea::placeholder{color:var(--text3);}
 </div>
 
 <!-- 일괄 실행 확인 모달 -->
-<div id="autoRunModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+<div id="autoRunModal" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:26px 28px 20px;max-width:460px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
       <span style="font-size:22px;">⚡</span>
@@ -812,7 +851,7 @@ textarea::placeholder{color:var(--text3);}
 </div>
 
 <!-- 사전 검토 Q&A 모달 -->
-<div id="preClarifyModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+<div id="preClarifyModal" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
     width:min(600px,94vw);max-height:80vh;display:flex;flex-direction:column;
     box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;">
@@ -855,7 +894,7 @@ textarea::placeholder{color:var(--text3);}
 </div>
 
 <!-- 토큰 초과 경고 모달 -->
-<div id="tokenWarnModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+<div id="tokenWarnModal" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:26px 28px 20px;max-width:480px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
       <span style="font-size:22px;">⚠️</span>
@@ -871,7 +910,7 @@ textarea::placeholder{color:var(--text3);}
 </div>
 
 <!-- Missing module 알림 모달 — Lint 결과에 정의되지 않은 module 발견 시 -->
-<div id="missingModuleModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+<div id="missingModuleModal" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
     width:min(640px,94vw);max-height:80vh;display:flex;flex-direction:column;
     box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;">
@@ -982,7 +1021,7 @@ textarea::placeholder{color:var(--text3);}
   <span id="ctxEstimate" style="font-family:var(--mono);font-size:11px;"></span>
 </div>
 <!-- ── 파라미터 수동 설정 팝업 ────────────────────────── -->
-<div id="paramPopup" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
+<div id="paramPopup" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.6);align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;width:480px;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden;">
 
     <!-- 헤더 -->
@@ -1123,6 +1162,76 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 function now(){const d=new Date();return`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,'0')}`;}
 function pad(n){return String(n).padStart(2,'0');}
 function triggerFile(id){document.getElementById(id).click();}
+function approxTokFromChars(n){ return Math.max(0, Math.round((Number(n)||0) / 3.5)); }
+function fmtThinkingTok(n){ return `~${approxTokFromChars(n).toLocaleString()}tok`; }
+
+function setReasoningPreviewHtml(el, text, title = 'GLM reasoning stream') {
+  if (!el || !text) return;
+  el.innerHTML = `<div style="color:var(--accent);margin-bottom:4px;">💭 ${esc(title)}</div>${esc(String(text).slice(-5000))}`;
+  el.style.opacity = '1';
+  el.scrollTop = el.scrollHeight;
+}
+// showLiveReasoning — 플로팅 패널 제거됨. 하위 호환 stub만 유지.
+function showLiveReasoning(text, title) { /* no-op */ }
+
+// GLM reasoning stream global receiver.
+// callLLM 내부에서 reasoning_content를 받는 순간 CustomEvent가 발생한다.
+// monPanel step box 및 현재 화면의 preview 박스를 직접 갱신한다.
+window.__glmReasoningPreviewText = '';
+window.__glmReasoningLastReqId   = '';   // req_id 변경 시 누적 텍스트 초기화용
+window.addEventListener('glm-reasoning-stream', function(ev) {
+  const d = ev && ev.detail ? ev.detail : {};
+  const delta     = d.reasoningDelta   ? String(d.reasoningDelta)   : '';
+  const preview   = d.reasoningPreview ? String(d.reasoningPreview) : '';
+  const req_id    = d.req_id    || '';
+  const previewId = d.previewId || '';   // 지정된 경우 그 박스만 갱신
+
+  // previewId가 지정된 경우: 해당 박스만 갱신하고 종료.
+  // reAnalyzeImpact(algo/uarch 병렬 실행)처럼 onProgress에서 이미
+  // 자체 박스를 직접 관리하는 경로는 여기서 다른 박스를 건드리지 않는다.
+  if (previewId) {
+    const el = document.getElementById(previewId);
+    if (el) {
+      const text = delta
+        ? (el.__reasoningBuf = ((el.__reasoningBuf || '') + delta).slice(-5000))
+        : preview;
+      if (text) try { setReasoningPreviewHtml(el, text); } catch (_) {}
+    }
+    return;
+  }
+
+  // previewId 없는 경우: 글로벌 누적 버퍼로 현재 화면의 모든 preview 박스 갱신.
+  // Summary, RTL 변환 등 withLLMProgress 경로에서 사용.
+
+  // 새 요청이 시작되면 누적 텍스트 초기화 (이전 요청의 reasoning 잔류 방지)
+  if (req_id && req_id !== window.__glmReasoningLastReqId) {
+    window.__glmReasoningPreviewText = '';
+    window.__glmReasoningLastReqId   = req_id;
+  }
+
+  if (delta) {
+    window.__glmReasoningPreviewText = (window.__glmReasoningPreviewText + delta).slice(-5000);
+  } else if (preview) {
+    window.__glmReasoningPreviewText = preview.slice(-5000);
+  }
+  const text = window.__glmReasoningPreviewText || preview;
+  if (!text) return;
+
+  // 현재 화면에 존재하는 streaming preview 박스들을 갱신한다.
+  // final content가 아직 없는 thinking-only 단계에서는 "응답 대기 중" 대신 reasoning을 보여준다.
+  const candidates = Array.from(document.querySelectorAll([
+    '[id$="-stream-preview"]',
+    '[id$="ReasoningPreview"]',
+    '[data-reasoning-preview]',
+    '.reasoning-preview'
+  ].join(',')));
+  for (const el of candidates) {
+    try {
+      setReasoningPreviewHtml(el, text);
+    } catch (_) {}
+  }
+});
+
 
 // ── 통합 LLM 진행 모니터 헬퍼 ─────────────────────────────
 // callLLM 호출의 실시간 진행 상황을 통합 처리. RTL 변환/Summary 분석/iter/lint
@@ -1136,7 +1245,7 @@ function triggerFile(id){document.getElementById(id).click();}
 //       // UI 갱신 — partial 은 가장 최근 누적 raw, 마지막 N자만 잘라 쓰면 됨
 //     },
 //   }, async ({ onChunk, opts }) => {
-//     await callLLM(host, model, sys, user, onChunk, mode, signal, opts);
+//     await callLLMWithRetry(host, model, sys, user, onChunk, mode, signal, opts);
 //   });
 //
 // 특징:
@@ -1154,21 +1263,27 @@ async function withLLMProgress(monCfg, runFn, callerOpts = {}) {
   let _tokens = 0, _reasoning = 0, _chunks = 0;
   let _phase = 'thinking', _stalled = false, _idleMs = 0;
   let _partial = '';
+  let _reasoningPreview = '';
+  let _reasoningDelta = '';
   let _lastChunkAt = t0;
 
   const tick = (final = false) => {
     const elapsed = (Date.now() - t0) / 1000;
     const tps = (_tokens > 0 && elapsed > 0) ? (_tokens / elapsed) : 0;
     if (monCfg.onTick) {
+      const _deltaForTick = _reasoningDelta;
       try {
         monCfg.onTick({
           elapsed, tokens: _tokens, tps,
           phase: _phase, stalled: _stalled, idleMs: _idleMs / 1000,
-          reasoning: _reasoning, chunks: _chunks,
+          reasoning: _reasoning, reasoningTokens: approxTokFromChars(_reasoning), chunks: _chunks,
           partial: _partial,
+          reasoningPreview: _reasoningPreview,
+          reasoningDelta: _deltaForTick,
           final,
         });
       } catch(e) { console.warn('[withLLMProgress.onTick]', e); }
+      _reasoningDelta = '';
     }
   };
   tick();   // 즉시 1회 (빈 화면 회피)
@@ -1183,12 +1298,23 @@ async function withLLMProgress(monCfg, runFn, callerOpts = {}) {
     _stalled     = false;
     tick();   // 청크 즉시 반영 (timer 다음 틱 안 기다림)
   };
-  const onProgress = ({ phase, stalled, idleMs, reasoningChars, chunkCount }) => {
+  const onProgress = ({ phase, stalled, idleMs, reasoningChars, chunkCount, reasoningDelta, reasoningTail }) => {
     _phase     = phase || _phase;
     _stalled   = stalled;
     _idleMs    = idleMs;
     _reasoning = reasoningChars ?? _reasoning;
     _chunks    = chunkCount ?? _chunks;
+    _reasoningDelta = reasoningDelta || '';
+    if (reasoningDelta) {
+      _reasoningPreview = (_reasoningPreview + reasoningDelta).slice(-5000);
+      tick();
+    } else if (reasoningTail) {
+      const _tail = String(reasoningTail).slice(-5000);
+      if (_tail && _tail !== _reasoningPreview) {
+        _reasoningPreview = _tail;
+        tick();
+      }
+    }
   };
 
   const opts = {
@@ -1210,15 +1336,15 @@ async function withLLMProgress(monCfg, runFn, callerOpts = {}) {
 }
 
 // 자주 쓰는 표시 형식 빌더 — phase/state 별 detail 문자열 생성
-function fmtLLMTick({ elapsed, tokens, tps, phase, stalled, idleMs, reasoning, chunks }) {
-  if (phase === 'thinking') {
+function fmtLLMTick({ elapsed, tokens, tps, phase, stalled, idleMs, reasoning }) {
+  if (phase === 'thinking' || phase === 'reasoning') {
     if (reasoning > 0) {
-      return `💭 thinking ${reasoning.toLocaleString()}자 · ${elapsed.toFixed(0)}s${chunks?` · ${chunks}청크`:''}`;
+      return `💭 thinking ${fmtThinkingTok(reasoning)} · ${elapsed.toFixed(0)}s`;
     }
     if (stalled) {
       return `⏳ thinking 길어짐… ${elapsed.toFixed(0)}s (5분 초과)`;
     }
-    return `⏳ LLM 분석 중 (thinking 가능)… ${elapsed.toFixed(0)}s${chunks?` · ${chunks}청크`:''}`;
+    return `⏳ LLM 분석 중 (응답 생성 대기)… ${elapsed.toFixed(0)}s`;
   }
   // streaming phase
   if (stalled && idleMs >= 180) {
@@ -1930,6 +2056,36 @@ let _summaryTargetFiles = [];
 // Phase 2 결과: [{idx, title, text, relevantFor:[fname]}]
 let _summaryUarchSections = [];
 
+// Phase 3 결과: LLM 압축 uArch 본문 (null = 미실행)
+let _summaryCompactedUarch = null;  // { text, origTok, newTok, droppedCount }
+
+// ── uArchCompact 옵션 UI 헬퍼 ─────────────────────────────
+function onUArchCompactOptChange(checked) {
+  // 옵션을 끄면 압축 결과도 초기화
+  if (!checked) clearCompactedUarch();
+}
+function isUArchCompactOpt() {
+  return document.getElementById('uArchCompactOpt')?.checked ?? false;
+}
+function showCompactedUarchResult(info) {
+  const wrap = document.getElementById('uArchCompactResult');
+  const span = document.getElementById('uArchCompactInfo');
+  if (wrap) wrap.style.display = 'flex';
+  if (span) span.textContent = info;
+}
+function clearCompactedUarch() {
+  _summaryCompactedUarch = null;
+  const wrap = document.getElementById('uArchCompactResult');
+  if (wrap) wrap.style.display = 'none';
+}
+function downloadCompactedUarch() {
+  if (!_summaryCompactedUarch?.text) { alert('압축된 μArch가 없습니다.'); return; }
+  const blob = new Blob([_summaryCompactedUarch.text], { type: 'text/plain' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'uarch_compacted.md'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ── Summary 모니터 헬퍼 ──────────────────────────────────
 function sumMonShow()  { document.getElementById('sumMonitor').style.display = ''; }
 function sumMonClear() { document.getElementById('sumMonSteps').innerHTML = ''; }
@@ -1976,6 +2132,7 @@ async function runSummaryAnalysis() {
   _summaryAnalysisDone = false;
   _summaryTargetFiles  = [];
   _summaryUarchSections = [];
+  clearCompactedUarch();
 
   try {
     // ── Phase 1: Target RTL 선정 ────────────────────────
@@ -1989,9 +2146,16 @@ async function runSummaryAnalysis() {
       sumMonAdd('p2-skip', '–', 'μArch 섹션 매핑', 'TO-BE μArch 없음 — 건너뜀', 'done');
     }
 
+    // ── Phase 3: μArch LLM 압축 (옵션) ─────────────────
+    if (isUArchCompactOpt() && utText.trim()) {
+      await runSummaryPhase3(host, model, utText);
+    } else if (!isUArchCompactOpt()) {
+      sumMonAdd('p3-skip', '–', 'μArch LLM 압축', '옵션 꺼짐 — 건너뜀', 'done');
+    }
+
     _summaryAnalysisDone = true;
     sumSetStatus('✓ 분석 완료 — RTL 변환 준비됨', 'var(--green)');
-    dbgLog('RES', '[summary] Phase 1+2 완료', 'res');
+    dbgLog('RES', '[summary] Phase 1+2+3 완료', 'res');
   } catch(e) {
     sumSetStatus(`오류: ${e.message}`, 'var(--red)');
     dbgLog('ERR', `[summary] ${e.message}`, 'err');
@@ -2007,8 +2171,8 @@ async function runSummaryPhase1(host, model) {
   // 준비 단계 (prompt 만들기 전) — 임시 표시
   sumMonAdd('p1', '<span class="spin">◌</span>', 'Phase 1: Target RTL 선정', '입력 준비 중…', 'active');
 
-  // RTL 파일 시그니처 준비
-  const sigs = rtlFiles.map(f => extractSignature(f.content, f.name)).join('\n\n');
+  // RTL 파일 시그니처 준비 — Phase 3용으로만 extractSignature 직접 사용
+  // Phase 1은 fileTable 압축 형식을 사용 (루프 방지)
 
   // 의존성 그래프 힌트 (있는 경우)
   if (!_depGraph) buildDepGraph();
@@ -2025,37 +2189,43 @@ async function runSummaryPhase1(host, model) {
     uarchImpact.trim() ? `=== μArch ${_p1Lang.fileDesc} Changes ===\n${uarchImpact}`    : '',
   ].filter(Boolean).join('\n\n') || '(변경점 분석 없음)';
 
-  const prompt = `${_p1Lang.impactExpert}
+  // RTL 파일을 번호 테이블로 압축 — "=== Module signature: xxx ===" 반복 패턴이
+  // GLM thinking 루프를 유발하므로 구조를 완전히 바꾼다.
+  // 파일명·module명·parameter·port 목록을 한 블록으로 압축 표현.
+  const fileTable = rtlFiles.map((f, i) => {
+    const sig = extractSignature(f.content, f.name);
+    // extractSignature 결과에서 module 선언부만 단순 추출
+    const moduleMatch = sig.match(/^module\s+(\w+)\s*(?:#\s*\(([^)]*)\))?\s*\(([^;]*)/ms);
+    if (!moduleMatch) return `[${i+1}] ${f.name}`;
+    const mName   = moduleMatch[1] || f.name;
+    const params  = (moduleMatch[2] || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const portRaw = (moduleMatch[3] || '').replace(/\s+/g, ' ').trim();
+    // port 목록을 "방향 이름[폭]" 형태로 압축
+    const ports = portRaw.split(',').map(p => {
+      const pm = p.trim().match(/(input|output|inout)\s+(?:wire|reg|logic)?\s*(?:\[\s*([^\]]+)\s*\])?\s*(\w+)/);
+      if (!pm) return null;
+      const dir = pm[1][0]; // i/o/b
+      const w   = pm[2] ? `[${pm[2]}]` : '';
+      return `${dir}:${pm[3]}${w}`;
+    }).filter(Boolean).join(' ');
+    const paramStr = params ? ` #(${params})` : '';
+    return `[${i+1}] ${f.name} — module ${mName}${paramStr} | ${ports || '(no ports)'}`;
+  }).join('\n');
 
-Given the following ${_p1Lang.fileDesc} change points and ${_p1Lang.fileDesc} file signatures, determine:
-1. Which ${_p1Lang.fileDesc} files MUST be modified (target)
-2. Which files are indirectly affected via port/interface changes (ref)
-3. Which files are completely unrelated (exclude)
-For each target/ref file, list the specific port names and signal names that will be affected.
+  const prompt = `Classify the RTL files below. Output JSON only — start your response with "{".
 
+=== Change Points ===
 ${impactSec}
 
-${depHint ? depHint + '\n\n' : ''}=== Available ${_p1Lang.fileDesc} Files (signatures) ===
-${sigs}
+${depHint ? depHint + '\n\n' : ''}=== RTL Files (${rtlFiles.length} total) ===
+${fileTable}
 
-Respond in JSON only (no markdown):
-{
-  "files": [
-    {
-      "name": "${_p1Lang.sampleFile}",
-      "status": "target|ref|exclude",
-      "reason": "brief reason",
-      "ports": ["port_name_1", "port_name_2"],
-      "signals": ["signal_name_1"]
-    }
-  ]
-}
+For each file output one entry. Status must be exactly one of: target, ref, exclude.
+- target: directly implements a changed function
+- ref: connected via port/interface to a target, no internal edit needed
+- exclude: unrelated
 
-Rules:
-- "target": file must be directly modified
-- "ref": file indirectly affected (port width change, interface change) but no direct edit needed
-- "exclude": completely unrelated to the changes
-- ports/signals: specific names only, empty array if none`;
+{"files":[{"name":"${_p1Lang.sampleFile}","status":"target","reason":"<15 words","ports":[],"signals":[]}]}`;
 
   // ── prompt 토큰 추정 — 호출 직전 사용자에게 표시 ───────────
   const promptTokens = estimateTokens(prompt);
@@ -2075,9 +2245,10 @@ Rules:
       // 헤더 status 도 동기화
       const _color = fmtLLMTickColor(s);
       sumSetStatus(`Phase 1 — 입력 ~${promptTokens.toLocaleString()}tok · ${fmtLLMTick(s)}`, _color);
+      if (s.reasoningPreview) sumMonSetReasoning('p1', s.reasoningPreview);
     },
   }, async ({ onChunk, opts }) => {
-    await callLLM(host, model, `${getLang().impactExpert} Respond only in valid JSON.`, prompt,
+    await callLLMWithRetry(host, model, `You are an RTL design expert. Respond only in valid JSON, starting with "{".`, prompt,
       (partial, meta) => { raw = partial; onChunk(partial, meta); },
       'json', _llmAborts['sum-analyze']?.controller.signal,
       opts);
@@ -2165,9 +2336,10 @@ Rules:
       sumMonUpdate('p2', '<span class="spin">◌</span>', 'active',
         `입력 ~${promptTokens.toLocaleString()}tok · ${fmtLLMTick(s)}`);
       sumSetStatus(`Phase 2 — 입력 ~${promptTokens.toLocaleString()}tok · ${fmtLLMTick(s)}`, fmtLLMTickColor(s));
+      if (s.reasoningPreview) sumMonSetReasoning('p2', s.reasoningPreview);
     },
   }, async ({ onChunk, opts }) => {
-    await callLLM(host, model, `${getLang().impactExpert} Respond only in valid JSON.`, prompt,
+    await callLLMWithRetry(host, model, `${getLang().impactExpert} Respond only in valid JSON.`, prompt,
       (partial, meta) => { raw = partial; onChunk(partial, meta); },
       'json', _llmAborts['sum-analyze']?.controller.signal,
       opts);
@@ -2193,6 +2365,84 @@ Rules:
   sumMonUpdate('p2', '✓', 'done', `완료 ${elapsed}s — ${secN}개 섹션 추출`);
   document.getElementById('sumUarchSectionBtn').style.display = '';
   dbgLog('RES', `[phase2] ${secN}개 섹션: ${_summaryUarchSections.map(s=>s.title).join(', ')}`, 'res');
+}
+
+// ════════════════════════════════════════════════════════
+// Phase 3: TO-BE μArch LLM 압축
+// 목차·변경점 무관 섹션·RTL 비관련 내용을 LLM이 제거해
+// 압축본을 _summaryCompactedUarch에 저장.
+// RTL 변환 시 buildContextSection()이 이 압축본을 우선 사용.
+// ════════════════════════════════════════════════════════
+async function runSummaryPhase3(host, model, utText) {
+  sumMonAdd('p3', '<span class="spin">◌</span>', 'Phase 3: μArch LLM 압축', '준비 중…', 'active');
+
+  const lang      = getLang();
+  const origTok   = estimateTokens(utText);
+  const impactCtx = buildImpactText('algo') + '\n' + buildImpactText('uarch');
+
+  // RTL 시그니처 — module명 + port 구조를 제공해 "이 섹션이 이 RTL과 관련 있는가"를
+  // LLM이 정확히 판단할 수 있도록 한다. extractSignature()로 로직부는 제외한 인터페이스만 전달.
+  const rtlSigs = rtlFiles.length
+    ? rtlFiles.map(f => extractSignature(f.content, f.name)).join('\n\n')
+    : '(RTL 파일 없음)';
+  const rtlSigTok = estimateTokens(rtlSigs);
+
+  const prompt = `${lang.impactExpert}
+
+You are given a TO-BE μArch document, RTL file signatures, and RTL change points.
+Remove ALL of the following from the document, keeping everything else verbatim:
+1. Table of contents, index, revision history, glossary, references
+2. Sections completely unrelated to RTL design (marketing, schedule, process flow, test plan, etc.)
+3. Sections with no connection to any of the RTL modules listed below AND unrelated to the change points
+
+=== RTL Module Signatures (interfaces to match against μArch sections) ===
+${rtlSigs}
+
+=== Current RTL Change Points ===
+${impactCtx.trim() || '(변경점 분석 없음 — RTL 모듈과 무관한 섹션만 제거)'}
+
+=== TO-BE μArch Document ===
+${utText}
+
+Output the filtered document text only.
+- Keep section headings and all content relevant to any RTL module above or to the change points
+- Do NOT add any explanation, preamble, or markdown wrapper
+- Do NOT summarize — keep relevant content verbatim`;
+
+  const promptTokens = estimateTokens(prompt);
+  sumMonUpdate('p3', '<span class="spin">◌</span>', 'active',
+    `입력 ~${promptTokens.toLocaleString()}tok (원문 ~${origTok.toLocaleString()}tok · RTL sig ~${rtlSigTok.toLocaleString()}tok) · ⏳ 압축 중…`);
+  dbgLog('REQ', `[Phase 3] prompt ~${promptTokens.toLocaleString()}tok  원문 ~${origTok.toLocaleString()}tok  RTL sig ~${rtlSigTok.toLocaleString()}tok  파일 ${rtlFiles.length}개`, 'req');
+
+  let raw = '';
+  const t0 = Date.now();
+  await withLLMProgress({
+    onTick: (s) => {
+      sumMonUpdate('p3', '<span class="spin">◌</span>', 'active',
+        `입력 ~${promptTokens.toLocaleString()}tok · ${fmtLLMTick(s)}`);
+      sumSetStatus(`Phase 3 — μArch 압축 중 · ${fmtLLMTick(s)}`, fmtLLMTickColor(s));
+      if (s.reasoningPreview) sumMonSetReasoning('p3', s.reasoningPreview);
+    },
+  }, async ({ onChunk, opts }) => {
+    await callLLMWithRetry(host, model, `${lang.impactExpert}`, prompt,
+      (partial, meta) => { raw = partial; onChunk(partial, meta); },
+      'rtl', _llmAborts['sum-analyze']?.controller.signal,
+      opts);
+  });
+
+  if (!raw.trim()) throw new Error('Phase 3: μArch 압축 결과가 비어있습니다');
+
+  const elapsed  = ((Date.now() - t0) / 1000).toFixed(1);
+  const newTok   = estimateTokens(raw);
+  const saved    = origTok - newTok;
+  const savedPct = origTok > 0 ? Math.round(saved / origTok * 100) : 0;
+
+  _summaryCompactedUarch = { text: raw, origTok, newTok, droppedPct: savedPct };
+
+  const info = `압축 완료 — ~${origTok.toLocaleString()}tok → ~${newTok.toLocaleString()}tok  (${savedPct}% 절감, ${elapsed}s)`;
+  sumMonUpdate('p3', '✓', 'done', info);
+  showCompactedUarchResult(info);
+  dbgLog('RES', `[phase3] ${info}`, 'res');
 }
 
 // ════════════════════════════════════════════════════════
@@ -2428,10 +2678,14 @@ function autoCalcNumCtx() {
   const thinkingBuf  = getThinkingBuf();
 
   // ── TO-BE μArch 전문 포함 시 추가 토큰 ───────────────────
-  // compactUarchForRtl 로 RTL 무관 섹션 제거 후의 실제 토큰 사용 — 화면 추정과 실 전송 일치.
-  const newUarchTok  = isIncludeNewUarch()
-    ? compactUarchForRtl(getText('ut')).newTokens
-    : 0;
+  // 우선순위: Phase 3 LLM 압축본 > Phase 2 섹션 [+ 전문] > 휴리스틱 압축본 > 0
+  const _p2Tok = _summaryUarchSections.reduce((s, c) => s + (c.tokens || 0), 0);
+  const _fullTok = isIncludeNewUarch() ? compactUarchForRtl(getText('ut')).newTokens : 0;
+  const newUarchTok = _summaryCompactedUarch?.newTok
+    ?? (_summaryUarchSections.length
+        // Phase 2 섹션이 있을 때: 전문 포함 옵션 ON이면 섹션+전문 합산
+        ? (_p2Tok + (isIncludeNewUarch() ? _fullTok : 0))
+        : _fullTok);
 
   // ── 필요 토큰 계산 (입력+출력 × margin + thinking) ───────
   // RTL 변환: 순차(최대 1파일) / 단일(전체 합산)
@@ -2577,6 +2831,9 @@ let _batchAborted = false;
 // 변환 진행 중인 callLLM/lint fetch를 즉시 abort 시키기 위한 컨트롤러.
 // _runBatchNow 시작 시 새로 생성, stopBatch() 가 abort() 호출.
 let _batchAbortController = null;
+// 마지막 변환 모드 — resumeBatch() 가 같은 모드로 재시작하기 위해 기억.
+// 'single' | 'sequential' (기본값은 sequential 호환)
+let _lastRunMode = 'sequential';
 
 function stopBatch() {
   // 변환 단계가 실제로 시작됐는지 확인 — 그래야 ↺ 이어서 변환 노출 의미가 있음
@@ -2603,14 +2860,41 @@ async function resumeBatch() {
   rtlFiles.forEach((f, i) => { if (i >= startIdx && f.status === 'run') f.status = 'wait'; });
   renderRtl(); renderResTabs();
 
-  dbgLog('INF', `재시작: ${rtlFiles[startIdx].name} (${startIdx+1}번째) 부터`, 'inf');
-
   const host  = (document.getElementById('oHost').value).replace(/\/+$/,'');
   const model = getSelectedModel();
   logImpactUsage();
 
+  // 진행 중인 LLM 호출을 stopBatch() 가 즉시 abort 할 수 있도록 새 컨트롤러 발급
+  _batchAborted = false;
+  _batchAbortController = new AbortController();
+
   const ctx = { host, model };
-  await runSequential(ctx, startIdx);  // 이어서 변환은 항상 순차
+
+  // 원래 변환 모드를 그대로 이어간다.
+  if (_lastRunMode === 'cumulative') {
+    dbgLog('INF', `재시작: 누적 단일 모드 — wait/err 파일부터 재변환`, 'inf');
+    // 누적 모드는 이미 변환된 파일(ok/lint-warn)은 보존, 미완료만 변환
+    rtlFiles.forEach(f => {
+      if (f.status === 'run' || f.status === 'err') {
+        f.status = 'wait'; f.result = ''; f.changes = [];
+      }
+    });
+    renderRtl(); renderResTabs();
+    await runCumulative(ctx);
+  } else if (_lastRunMode === 'single') {
+    dbgLog('INF', `재시작: 단일 모드 — 모든 파일 재변환`, 'inf');
+    // 모든 미완료 파일을 wait 으로 리셋 (단일은 전체를 다시 보내야 함)
+    rtlFiles.forEach(f => {
+      if (f.status === 'wait' || f.status === 'err') {
+        f.status = 'wait'; f.result = ''; f.changes = [];
+      }
+    });
+    renderRtl(); renderResTabs();
+    await runSingleContext(ctx);
+  } else {
+    dbgLog('INF', `재시작: 순차 모드 — ${rtlFiles[startIdx].name} (${startIdx+1}번째) 부터`, 'inf');
+    await runSequential(ctx, startIdx);
+  }
 }
 
 // ── 중단/재시작 버튼 표시 제어 ────────────────────────────
@@ -2709,7 +2993,11 @@ async function _runBatchNow(mode = 'single') {
 
   const ctx = { host, model };
 
-  if (mode === 'single') {
+  _lastRunMode = mode;   // resumeBatch 가 같은 모드로 재시작하기 위해 기억
+
+  if (mode === 'cumulative') {
+    await runCumulative(ctx);
+  } else if (mode === 'single') {
     await runSingleContext(ctx);
   } else {
     await runSequential(ctx);
@@ -2778,21 +3066,24 @@ function isLargeCxtModel() {
 function checkTokensAndRun() {
   if (!rtlFiles.length) { runBatch(); return; }
 
+  const userMode = getRunMode();   // 사용자가 선택한 모드 (cumulative/single/sequential)
+
   // 화면이 직전에 계산한 결과가 있으면 그것을 그대로 재사용 → 화면/모달 수치 일치 보장.
   // 캐시가 없거나 RTL 단계가 아니어서 비어있으면 새로 계산.
   const calc = window._lastConvCalc || calcTotalConvTokens();
   // 새 계산도 캐시에 저장 (모달 닫고 재호출 등 후속 사용 대비)
   window._lastConvCalc = calc;
 
-  if (calc.total < TOKEN_WARN_THRESHOLD || isLargeCxtModel()) {
-    if (calc.total >= TOKEN_WARN_THRESHOLD) {
+  // cumulative / sequential 모드는 한 번에 1파일만 LLM에 보내므로 토큰 한도 경고 불필요
+  if (userMode !== 'single' || calc.total < TOKEN_WARN_THRESHOLD || isLargeCxtModel()) {
+    if (userMode === 'single' && calc.total >= TOKEN_WARN_THRESHOLD) {
       dbgLog('INF', `[ctx] ${getSelectedModel()} — largeCxtModel 등록됨, ${calc.total.toLocaleString()} tok 단일 실행`, 'inf');
     }
-    checkTokensAndRunWithClarify('single');  // ← 사전 검토 경유
+    checkTokensAndRunWithClarify(userMode);  // ← 사전 검토 경유
     return;
   }
 
-  // 128K 초과 → 경고 모달
+  // single 모드 + 128K 초과 → 경고 모달
   const rows = calc.breakdown
     .map(b => `<span style="color:var(--text3);">  · ${b.label}:</span> <b>~${b.tok.toLocaleString()} tok</b>`)
     .join('<br>');
@@ -2835,6 +3126,10 @@ function isPreClarifyOn() {
 }
 function isLintOn() {
   return document.getElementById('lintOpt')?.checked ?? true;
+}
+function getRunMode() {
+  // 사용자가 선택한 변환 모드 — 'cumulative' | 'single' | 'sequential'
+  return document.querySelector('input[name="runMode"]:checked')?.value || 'cumulative';
 }
 
 // 사전 검토 LLM 진행 중 abort용
@@ -2974,7 +3269,7 @@ Return at most 5 questions. If nothing is ambiguous, return { "questions": [] }`
         }
       },
     }, async ({ onChunk, opts }) => {
-      await callLLM(host, model,
+      await callLLMWithRetry(host, model,
         `${lang.expert} Identify ambiguities before code conversion. Respond only in valid JSON.`,
         prompt, (partial, meta) => { raw = partial; onChunk(partial, meta); },
         'json',
@@ -3529,9 +3824,14 @@ function renderIdBadges(ids, clickable = false) {
 // use: true=body에 포함, false=제외(서버 기본값)
 // mode: 'auto'=자동계산, 'manual'=직접입력
 // val: 수동값
+//
+// thinking.use 가 true 이면 chat_template_kwargs.thinking_budget 으로
+// 전송되어 GLM-4.7 의 reasoning loop 를 budget 한도에서 강제 종료시킨다.
+// 기본값 8192 — Phase 1/2 분류, Phase 3 압축, RTL 생성 모두 충분.
+// 사용자가 슬라이더로 조정 가능.
 const _pset = {
   num_ctx:  { use: false, mode: 'auto',   val: 32768 }, // OLLAMA_MODE 전용 (기본 비활성)
-  thinking: { use: false, mode: 'manual', val: 0     }, // 계산용
+  thinking: { use: true,  mode: 'manual', val: 8192  }, // reasoning_budget 안전망 (기본 ON)
 };
 
 // ── 변환 강도 슬라이더 ─────────────────────────────────────
@@ -3569,12 +3869,13 @@ function getConvPreset() { return CONV_STRENGTH_PRESETS[_convStrength] || CONV_S
 // 에서 thinking 이 빈 응답을 만드는 경우가 있어 기본 꺼짐. 켜진 경우 callLLM
 // body 에 `chat_template_kwargs: { enable_thinking: true }` 가 추가됨.
 const LS_KEY_THINKING = 'rtl-ide-enable-thinking';
-let _enableThinking = false;   // 기본 꺼짐 (사내 LLM 빈 응답 회피)
+let _enableThinking = true;   // 기본 켜짐 (thinking budget으로 loop 방지)
 
 function loadThinkingPref() {
   try {
     const stored = localStorage.getItem(LS_KEY_THINKING);
-    _enableThinking = stored === 'true';
+    // stored가 null(미설정)이면 기본값(true) 유지, 명시적으로 저장된 값만 적용
+    if (stored !== null) _enableThinking = stored === 'true';
     const cb = document.getElementById('enableThinking');
     if (cb) cb.checked = _enableThinking;
     applyThinkingLabel();
@@ -4017,15 +4318,44 @@ function buildContextSection() {
 
   // Phase 2 결과: 관련 μArch 섹션 (Summary 분석 완료 시 우선 사용)
   let uarchRefSection = '';
-  if (_summaryUarchSections.length) {
+  if (_summaryCompactedUarch?.text) {
+    // Phase 3 LLM 압축본 — 최우선. 변경점과 무관한 섹션이 LLM에 의해 제거된 버전.
+    dbgLog('INF',
+      `[uarch-ctx] Phase 3 압축본 사용 — ~${_summaryCompactedUarch.newTok.toLocaleString()}tok` +
+      ` (원문 대비 ${_summaryCompactedUarch.droppedPct}% 절감)`, 'inf');
+    uarchRefSection = `=== TO-BE μArch Document (LLM-compacted) ===\n` +
+      UARCH_TABLE_RULES + '\n' +
+      `(Irrelevant sections — TOC, revision history, schedule, unrelated functions — removed by LLM. ` +
+      `Original ~${_summaryCompactedUarch.origTok.toLocaleString()}tok → ` +
+      `compressed ~${_summaryCompactedUarch.newTok.toLocaleString()}tok.)\n` +
+      _summaryCompactedUarch.text;
+  } else if (_summaryUarchSections.length) {
+    // Phase 2 섹션 — 관련 섹션만 추출
     const secTexts = _summaryUarchSections.map(s =>
       `--- Section [${s.idx}]: ${s.title} ---\n${s.text}`
     ).join('\n\n');
     uarchRefSection = `=== Relevant TO-BE μArch Sections ===\n` +
       UARCH_TABLE_RULES + '\n' +
       `(Extracted sections most relevant to this ${getLang().fileDesc} file)\n${secTexts}`;
+
+    // "TO-BE uArch 전문 포함" 옵션이 켜져 있으면 섹션에 더해 전문도 추가
+    if (isIncludeNewUarch()) {
+      const utText = getText('ut');
+      if (utText.trim()) {
+        const compacted = compactUarchForRtl(utText.trim());
+        dbgLog('INF',
+          `[uarch-ctx] Phase 2 섹션 + 전문 포함 (includeNewUarch ON) — ` +
+          `섹션 ${_summaryUarchSections.length}개 + 전문 ~${compacted.newTokens.toLocaleString()}tok`,
+          'inf');
+        uarchRefSection +=
+          `\n\n=== TO-BE μArch Document (Full, compacted) ===\n` +
+          UARCH_TABLE_RULES + '\n' +
+          `(Full document included per user option — use above sections as primary reference)\n` +
+          compacted.text;
+      }
+    }
   } else if (isIncludeNewUarch()) {
-    // fallback: 분석 미실행 시 전문 포함 옵션이 켜져 있으면 전문 사용.
+    // fallback: Summary 분석 미실행 시 전문 포함 옵션이 켜져 있으면 전문 사용.
     // 단, RTL 분석/설계와 무관한 섹션(목차/changelog/참조 등)은 휴리스틱으로 제거.
     const utText = getText('ut');
     if (utText.trim()) {
@@ -4265,7 +4595,7 @@ Respond in JSON only (no markdown, no explanation):
         }
       },
     }, async ({ onChunk, opts }) => {
-      await callLLM(host, model,
+      await callLLMWithRetry(host, model,
         `${getLang().impactExpert} Respond only in valid JSON.`,
         analysisPrompt,
         (partial, meta) => { raw = partial; onChunk(partial, meta); },
@@ -4441,9 +4771,10 @@ Rules:
     const { raw, finish } = await withLLMProgress({
       onTick: (s) => {
         monUpdateDetail(stepId, fmtLLMTick(s));
+        if (s.reasoningPreview) monSetReasoning(stepId, s.reasoningPreview);
       },
     }, async ({ onChunk: progressChunk, opts }) => {
-      return await callLLM(host, model,
+      return await callLLMWithRetry(host, model,
         `${getLang().iterExpert} Apply only the requested changes precisely.`,
         prompt,
         (partial, meta) => { full = partial; progressChunk(partial, meta); },
@@ -4779,6 +5110,7 @@ Rules:
     let _idleMs   = 0;
     let _reasoning = 0;
     let _chunks    = 0;
+    let _reasoningPreview = '';
 
     // ── 1초 주기 live UI 갱신 ──────────────────────────────
     // 청크 안 와도 elapsed/idle/throughput 을 계속 표시.
@@ -4791,11 +5123,11 @@ Rules:
       let hdrIcon, hdrText, hdrColor;
       if (_phase === 'thinking') {
         if (_reasoning > 0) {
-          hdrIcon = '💭'; hdrText = `LLM thinking 중… ${_reasoning.toLocaleString()}자 reasoning · ${elapsed.toFixed(0)}s`; hdrColor = 'var(--text2)';
+          hdrIcon = '💭'; hdrText = `LLM thinking 중… ${fmtThinkingTok(_reasoning)} · ${elapsed.toFixed(0)}s`; hdrColor = 'var(--text2)';
         } else if (_stalled) {
           hdrIcon = '⏳'; hdrText = `LLM 분석 길어짐… ${elapsed.toFixed(0)}s (5분 초과)`;                   hdrColor = 'var(--amber)';
         } else {
-          hdrIcon = '⏳'; hdrText = `LLM 분석 중 (thinking 가능)… ${elapsed.toFixed(0)}s`;                  hdrColor = 'var(--text2)';
+          hdrIcon = '⏳'; hdrText = `LLM 분석 중 (응답 생성 대기)… ${elapsed.toFixed(0)}s`;                  hdrColor = 'var(--text2)';
         }
       } else {
         if (_stalled && _idleMs >= 180000) {
@@ -4806,6 +5138,13 @@ Rules:
           hdrIcon = '◌'; hdrText = `${isFirst ? '분석' : '재분석'} 중…${extraNote ? ' (추가 지시 포함)' : ''}`; hdrColor = 'var(--amber)';
         }
       }
+
+      const _previewHtml = raw
+        ? esc(raw.slice(-600))
+        : (_reasoningPreview
+            ? `<div style="color:var(--accent);margin-bottom:4px;">💭 GLM reasoning stream</div>${esc(_reasoningPreview.slice(-5000))}`
+            : '<span style="color:var(--text3);">응답 대기 중…</span>');
+      if (_reasoningPreview && !raw) setReasoningPreviewHtml(document.getElementById(`${mk}-stream-preview`), _reasoningPreview);
 
       impactEl.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px;padding:4px 0;">
@@ -4818,10 +5157,9 @@ Rules:
             <span>응답 토큰 <span style="color:var(--accent);">~${_tokens.toLocaleString()}</span></span>
             <span>경과 <span style="color:var(--accent);">${elapsed.toFixed(1)}s</span></span>
             <span>속도 <span style="color:var(--accent);">${tps.toFixed(1)} tok/s</span></span>
-            ${_reasoning > 0 ? `<span>thinking <span style="color:var(--text3);">${_reasoning.toLocaleString()}자</span></span>` : ''}
-            ${_chunks > 0 ? `<span>청크 <span style="color:var(--text3);">${_chunks}</span></span>` : ''}
+            ${_reasoning > 0 ? `<span>thinking <span style="color:var(--text3);">${fmtThinkingTok(_reasoning)}</span></span>` : ''}
           </div>
-          <div id="${mk}-stream-preview" style="font-family:var(--mono);font-size:11px;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px 8px;max-height:180px;overflow-y:auto;line-height:1.5;word-break:break-all;white-space:pre-wrap;opacity:.85;">${esc(raw.slice(-600)) || '<span style="color:var(--text3);">응답 대기 중…</span>'}</div>
+          <div id="${mk}-stream-preview" style="font-family:var(--mono);font-size:11px;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px 8px;max-height:180px;overflow-y:auto;line-height:1.5;word-break:break-all;white-space:pre-wrap;opacity:.85;">${_previewHtml}</div>
         </div>`;
 
       // streaming preview 자동 스크롤 (사용자가 LLM 출력의 최신 부분을 항상 보게)
@@ -4832,7 +5170,7 @@ Rules:
     const _liveTimer = setInterval(renderProgress, 1000);
 
     try {
-    await callLLM(host, model, `${getLang().impactExpert} Respond only in valid JSON.`, prompt,
+    await callLLMWithRetry(host, model, `${getLang().impactExpert} Respond only in valid JSON.`, prompt,
       (partial, meta) => {
         raw       = partial;
         _tokens   = meta?.tokens ?? Math.round(partial.length / 3.5);
@@ -4852,12 +5190,25 @@ Rules:
         firstByteWarnMs: 300000,   // 5분 (thinking 모델 대응)
         idleWarnMs:      60000,    // 1분
         idleAbortMs:     -1,
-        onProgress: ({ phase, stalled, idleMs, reasoningChars, chunkCount }) => {
+        previewId: `${mk}-stream-preview`,  // 글로벌 핸들러가 이 박스만 갱신하도록 한정
+        onProgress: ({ phase, stalled, idleMs, reasoningChars, chunkCount, reasoningDelta, reasoningTail }) => {
           _phase     = phase || _phase;
           _stalled   = stalled;
           _idleMs    = idleMs;
           _reasoning = reasoningChars ?? _reasoning;
           _chunks    = chunkCount ?? _chunks;
+          if (reasoningDelta) {
+            _reasoningPreview = (_reasoningPreview + reasoningDelta).slice(-5000);
+            setReasoningPreviewHtml(document.getElementById(`${mk}-stream-preview`), _reasoningPreview);
+            renderProgress();
+          } else if (reasoningTail) {
+            const _tail = String(reasoningTail).slice(-5000);
+            if (_tail && _tail !== _reasoningPreview) {
+              _reasoningPreview = _tail;
+              setReasoningPreviewHtml(document.getElementById(`${mk}-stream-preview`), _reasoningPreview);
+              renderProgress();
+            }
+          }
         },
       }
     );
@@ -5120,7 +5471,7 @@ Respond in JSON only with the modified item (same structure, all fields required
     let raw = '';
     // json-sm 단발 짧은 호출 — timer 기반 monitoring 은 과함, 단순 placeholder 만 사용
     if (llmInput) llmInput.placeholder = 'AI 수정 중…';
-    await callLLM(host, model, 'Respond only in valid JSON.', prompt,
+    await callLLMWithRetry(host, model, 'Respond only in valid JSON.', prompt,
       p => { raw = p; }, 'json-sm');
     dbgLog('RES', `[impact llm-edit] 요청: "${request}" → ${raw}`, 'res');  // ③ 응답 콘솔 출력
 
@@ -5686,7 +6037,7 @@ Rules:
         autoRunSetStatus(`[${label} 분석] ${fmtLLMTick(s)}`, fmtLLMTickColor(s));
       },
     }, async ({ onChunk, opts }) => {
-      await callLLM(host, model, `${getLang().impactExpert} Respond only in valid JSON.`,
+      await callLLMWithRetry(host, model, `${getLang().impactExpert} Respond only in valid JSON.`,
         prompt,
         (partial, meta) => { raw = partial; onChunk(partial, meta); },
         'json', signal, opts);
@@ -6003,7 +6354,37 @@ async function lintFile(code, filename, signal = null) {
   }
 }
 
-// lint 오류를 LLM에 전달해서 자동 수정 요청
+// ── 전체 파일 일괄 lint (1회 서버 호출) ─────────────────────
+// target 없이 files 전체를 보내면 서버가 파일별 오류 맵을 반환.
+// 반환값: { "crc.v": { ok, errors, warnings }, "arbiter.v": { ... }, ... }
+//         서버 미지원(구버전) 시 null 반환 → runLintAll 이 파일별 fallback.
+async function lintAllFiles(signal = null) {
+  const lintUrl = devUrl('/lint');
+  const lang = getLang().extractSig === 'systemc' ? 'systemc' : 'rtl';
+
+  const files = rtlFiles.map(f => ({
+    name:    f.name,
+    content: (f.status === 'ok' && f.result) ? f.result : f.content,
+  }));
+
+  try {
+    const res = await fetch(lintUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // target 미지정 → 서버가 all 모드로 전체 파일별 오류 맵 반환
+      body: JSON.stringify({ files, lang }),
+      signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.mode !== 'all') return null;   // 구버전 서버 — fallback
+    return data.file_results;               // { filename: { ok, errors, warnings } }
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    dbgLog('INF', `[lint-all] 서버 연결 불가 — 파일별 fallback (${e.message})`, 'inf');
+    return null;
+  }
+}
 async function autoFixLint(f, lintResult, host, model, attempt, signal = null, stepId = null) {
   const lang = getLang();
   const errorBlock = lintResult.errors.slice(0, 20)
@@ -6044,7 +6425,7 @@ Rules:
         }
       },
     }, async ({ onChunk, opts }) => {
-      await callLLM(host, model, `${lang.expert} Fix lint errors precisely.`,
+      await callLLMWithRetry(host, model, `${lang.expert} Fix lint errors precisely.`,
         fixPrompt,
         (partial, meta) => { raw = partial; onChunk(partial, meta); },
         'rtl', signal, opts);
@@ -6151,6 +6532,137 @@ async function lintAndFix(f, host, model, stepId) {
   }
 }
 
+// ── 전체 파일 일괄 lint ──────────────────────────────────────
+// 모든 모드(순차/단일/누적)에서 변환 완료 후 한 번에 호출.
+// 1. lintAllFiles() — 1회 서버 호출로 전체 파일 오류 맵 수신
+// 2. 오류 있는 파일만 autoFixLint 후 재lint (파일별 서버 호출)
+// 서버가 all 모드 미지원 시 기존 파일별 순차 lint로 fallback.
+async function runLintAll(host, model) {
+  const targets = rtlFiles.filter(f => f.status === 'ok');
+  if (!targets.length || !isLintOn()) return;
+
+  const signal = _batchAbortController?.signal;
+
+  monAddStep('all-lint', '<span class="spin">◌</span>', 'Lint 일괄 검사',
+    `${targets.length}개 파일 한번에 검사 중…`, 'active');
+  dbgLog('INF', `[lint-all] ${targets.length}개 파일 1회 서버 호출 lint 시작`, 'inf');
+
+  // ── Step 1: 1회 서버 호출로 전체 파일 오류 맵 수신 ────────
+  const allResults = await lintAllFiles(signal);
+
+  if (allResults) {
+    // all 모드 성공 — 결과를 각 파일에 할당
+    for (const f of targets) {
+      const fr = allResults[f.name];
+      if (!fr) {
+        // 결과에 없으면 lint 통과로 간주
+        f.lintResult = { ok: true, errors: [], warnings: [], note: '결과 없음(통과)' };
+        continue;
+      }
+      f.lintResult = { ...fr, linter: allResults._linter || '' };
+      if (!fr.ok) f.status = 'lint-warn';
+    }
+    dbgLog('INF', `[lint-all] 1회 호출 완료 — 오류 파일: ${targets.filter(f=>!f.lintResult?.ok).length}개`, 'inf');
+    renderRtl(); renderResTabs();
+
+    // ── Step 2: 오류 있는 파일만 autoFixLint ─────────────────
+    const errTargets = targets.filter(f => f.lintResult && !f.lintResult.ok);
+    for (const f of errTargets) {
+      monUpdateDetail('all-lint', `${f.name} 자동 수정 중…`);
+      // autoFixLint 후 재lint는 기존 lintAndFix 활용 (파일별 서버 호출)
+      for (let attempt = 1; attempt <= LINT_MAX_RETRY && !f.lintResult.ok; attempt++) {
+        monUpdateDetail('all-lint',
+          `${f.name} lint 자동 수정 ${attempt}/${LINT_MAX_RETRY}…`);
+        await autoFixLint(f, f.lintResult, host, model, attempt, signal, 'all-lint');
+        // 재lint — target 지정으로 해당 파일만
+        const newResult = await lintFile(f.result, f.name, signal);
+        f.lintResult = newResult;
+        if (!newResult.ok) f.status = 'lint-warn';
+        else f.status = 'ok';
+        dbgLog(newResult.ok ? 'INF' : 'ERR',
+          `[lint-fix] ${f.name} 시도 ${attempt}: 오류 ${newResult.errors?.length || 0}개`,
+          newResult.ok ? 'inf' : 'err');
+      }
+      renderRtl(); renderResTabs();
+    }
+  } else {
+    // ── fallback: 구버전 서버 — 파일별 순차 lint ──────────────
+    dbgLog('INF', '[lint-all] all 모드 미지원 — 파일별 순차 lint fallback', 'inf');
+    monUpdateDetail('all-lint', '파일별 순차 lint 중…');
+    for (const f of targets) {
+      monUpdateDetail('all-lint', `${f.name} lint 중…`);
+      await lintAndFix(f, host, model, 'all-lint');
+      if (f.lintResult && !f.lintResult.ok) f.status = 'lint-warn';
+      renderRtl(); renderResTabs();
+    }
+  }
+
+  const lintErrs = targets.filter(f => f.status === 'lint-warn').length;
+  monUpdateStep('all-lint', lintErrs ? '⚠' : '✓', lintErrs ? 'err' : 'done',
+    lintErrs ? `${lintErrs}개 파일 lint 오류 남음` : '모든 파일 lint 통과');
+  dbgLog(lintErrs ? 'ERR' : 'RES',
+    `[lint-all] 완료 — 통과:${targets.length - lintErrs} 오류:${lintErrs}`,
+    lintErrs ? 'err' : 'res');
+}
+
+// ── applyChanges 헬퍼 (모듈 레벨 — 중첩 함수 선언 회피) ─────
+function _acNorm(s)           { return s.replace(/\t/g, '  '); }
+function _acFindAll(code, pat) {
+  const nc = _acNorm(code), np = _acNorm(pat), out = [];
+  let i = 0;
+  while (true) { const x = nc.indexOf(np, i); if (x < 0) break; out.push(x); i = x + 1; }
+  return out;
+}
+function _acLine(code, pos)   { return code.slice(0, pos).split('\n').length; }
+function _acClosest(code, pos, hint) {
+  return pos.reduce((b, p) =>
+    Math.abs(_acLine(code,p) - hint) < Math.abs(_acLine(code,b) - hint) ? p : b);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// applyChanges — Step 2 변경점 적용 (before 매칭 + 아래부터 적용)
+// ════════════════════════════════════════════════════════════════════
+function applyChanges(originalCode, changes) {
+  // line_hint 내림차순 정렬 → 아래부터 적용 (라인 시프트 방지)
+  const sorted = [...changes].sort((a, b) => (b.line_hint || 0) - (a.line_hint || 0));
+  const applied = [], failed = [];
+  let code = originalCode;
+
+  for (const ch of sorted) {
+    if (!ch.before || !ch.after) { failed.push({ ...ch, failReason: 'before/after 없음' }); continue; }
+
+    const positions = _acFindAll(code, ch.before);
+
+    if (positions.length === 0) {
+      // 공백 완전 정규화 후 재시도
+      const nc2 = _acNorm(code).replace(/ +/g, ' ');
+      const np2 = _acNorm(ch.before).replace(/ +/g, ' ');
+      const ni  = nc2.indexOf(np2);
+      if (ni !== -1) {
+        const nl  = nc2.slice(0, ni).split('\n').length - 1;
+        const ol  = code.split('\n');
+        const os  = ol.slice(0, nl).join('\n').length + (nl > 0 ? 1 : 0);
+        code = code.slice(0, os) + ch.after + code.slice(Math.min(os + ch.before.length, code.length));
+        applied.push(ch);
+        dbgLog('INF', `[applyChanges] ${ch.id} — 공백 정규화 매칭`, 'inf');
+      } else {
+        failed.push({ ...ch, failReason: 'before 미발견' });
+        dbgLog('ERR', `[applyChanges] ${ch.id} — before 미발견: "${ch.before.slice(0, 60)}"`, 'err');
+      }
+      continue;
+    }
+
+    const tp = positions.length === 1 ? positions[0] : _acClosest(code, positions, ch.line_hint || 0);
+    if (positions.length > 1)
+      dbgLog('INF', `[applyChanges] ${ch.id} — ${positions.length}개 매치, line_hint=${ch.line_hint} → line=${_acLine(code,tp)} 선택`, 'inf');
+
+    code = code.slice(0, tp) + ch.after + code.slice(tp + ch.before.length);
+    applied.push(ch);
+  }
+
+  return { code, applied, failed };
+}
+
 function _syncResultHandles() {
   const mon  = document.getElementById('monPanel').style.display  !== 'none';
   const iter = document.getElementById('iterPanel').style.display !== 'none';
@@ -6231,6 +6743,52 @@ function monUpdateDetail(id, detail) {
   if (d) { d.textContent = detail; d.parentElement.parentElement.scrollTop = d.parentElement.parentElement.scrollHeight; }
 }
 
+function _ensureReasoningBox(step, boxId, preId, title) {
+  let box = document.getElementById(boxId);
+  if (!box) {
+    box = document.createElement('div');
+    box.className = 'mon-reasoning';
+    box.id = boxId;
+    box.innerHTML = `<div class="mon-reasoning-title">💭 ${esc(title)}</div><pre id="${preId}"></pre>`;
+    step.appendChild(box);
+  }
+  return box;
+}
+function monSetReasoning(id, text, title = 'GLM reasoning stream') {
+  if (!text) return;
+  const step = document.getElementById(`mon-${id}`);
+  if (!step) return;
+  const box = _ensureReasoningBox(step, `mon-r-${id}`, `mon-r-pre-${id}`, title);
+  const pre = document.getElementById(`mon-r-pre-${id}`);
+  if (!pre) return;
+  pre.textContent = String(text).slice(-5000);
+  box.scrollTop = box.scrollHeight;
+  const wrap = document.getElementById('monSteps');
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
+}
+function monAppendReasoning(id, delta, title = 'GLM reasoning stream') {
+  if (!delta) return;
+  const pre = document.getElementById(`mon-r-pre-${id}`);
+  monSetReasoning(id, ((pre && pre.textContent) || '') + delta, title);
+}
+function sumMonSetReasoning(id, text, title = 'GLM reasoning stream') {
+  if (!text) return;
+  const step = document.getElementById(`sum-mon-${id}`);
+  if (!step) return;
+  const box = _ensureReasoningBox(step, `sum-mon-r-${id}`, `sum-mon-r-pre-${id}`, title);
+  const pre = document.getElementById(`sum-mon-r-pre-${id}`);
+  if (!pre) return;
+  pre.textContent = String(text).slice(-5000);
+  box.scrollTop = box.scrollHeight;
+  const wrap = document.getElementById('sumMonSteps');
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
+}
+function sumMonAppendReasoning(id, delta, title = 'GLM reasoning stream') {
+  if (!delta) return;
+  const pre = document.getElementById(`sum-mon-r-pre-${id}`);
+  sumMonSetReasoning(id, ((pre && pre.textContent) || '') + delta, title);
+}
+
 // ── Mode 1: 순차 처리 ─────────────────────────────────────
 async function runSequential(ctx, startIdx = 0) {
   const { host, model } = ctx;
@@ -6276,12 +6834,13 @@ async function runSequential(ctx, startIdx = 0) {
 
     const f = rtlFiles[idx];
 
-    // Phase 1 결과: 제외 파일 — 변환 skip, 원본 그대로 유지
-    if (f._p1Excluded) {
+    // Phase 1 결과: 제외 파일 또는 참조용 파일 — 변환 skip, 원본 그대로 유지
+    if (f._p1Excluded || f._p1Ref) {
       f.status = 'skip';
-      f.result = f.content;   // 원본 그대로, 주석 없음
+      f.result = f.content;
       f.changes = [];
-      monAddStep(`f${idx}`, '–', `[${idx+1}/${rtlFiles.length}] ${f.name}`, 'Phase 1 제외 — 변환 skip', 'done');
+      const skipLabel = f._p1Ref ? 'Phase 1 참조용 — 변환 skip (원본 유지)' : 'Phase 1 제외 — 변환 skip';
+      monAddStep(`f${idx}`, '–', `[${idx+1}/${rtlFiles.length}] ${f.name}`, skipLabel, 'done');
       renderRtl(); renderResTabs(); showRes(idx);
       continue;
     }
@@ -6340,7 +6899,8 @@ async function runSequential(ctx, startIdx = 0) {
         let isStalled   = false;
         let phase       = 'thinking';   // 'thinking' (첫 청크 전) | 'streaming' (청크 흐름 중)
         let reasoning   = 0;            // thinking 토큰 누적 길이
-        let chunkCnt    = 0;
+        let chunkCnt    = 0; // internal only, not displayed
+        let reasoningPreview = '';
         let liveTimer   = null;
 
         // ── 1초 주기 live timer (청크 유무와 무관) ──────────
@@ -6358,15 +6918,15 @@ async function runSequential(ctx, startIdx = 0) {
 
           if (phase === 'thinking') {
             if (reasoning > 0) {
-              detail      = `💭 thinking 중… ${reasoning.toLocaleString()}자 · ${elapsed.toFixed(0)}s`;
-              statusMsg   = `💭 LLM thinking ${reasoning.toLocaleString()}자 · ${chunkLabel}`;
+              detail      = `💭 thinking 중… ${fmtThinkingTok(reasoning)} · ${elapsed.toFixed(0)}s`;
+              statusMsg   = `💭 LLM thinking ${fmtThinkingTok(reasoning)} · ${chunkLabel}`;
               statusColor = 'var(--text2)';
             } else if (isStalled) {
               detail      = `⏳ thinking 길어짐… ${elapsed.toFixed(0)}s (5분 초과)`;
               statusMsg   = `⏳ LLM thinking ${elapsed.toFixed(0)}s · ${chunkLabel}`;
               statusColor = 'var(--amber)';
             } else {
-              detail      = `⏳ LLM 분석 중 (thinking 가능)… ${elapsed.toFixed(0)}s`;
+              detail      = `⏳ LLM 분석 중 (응답 생성 대기)… ${elapsed.toFixed(0)}s`;
               statusMsg   = null;   // 헤더 status 는 그대로 유지 (정상 동작)
             }
           } else {
@@ -6414,17 +6974,20 @@ async function runSequential(ctx, startIdx = 0) {
             if (ra) { ra.innerHTML = rendered; ra.scrollTop = ra.scrollHeight; }
           }
         };
-        const onProgress = ({ phase: p, stalled, idleMs, reasoningChars, chunkCount }) => {
+        const onProgress = ({ phase: p, stalled, idleMs, reasoningChars, chunkCount, reasoningDelta, reasoningTail }) => {
           phase     = p || phase;
           isStalled = stalled;
           reasoning = reasoningChars ?? reasoning;
           chunkCnt  = chunkCount ?? chunkCnt;
+          if (reasoningDelta) reasoningPreview = (reasoningPreview + reasoningDelta).slice(-5000);
+          else if (reasoningTail) reasoningPreview = String(reasoningTail).slice(-5000);
+          if (reasoningPreview) { monSetReasoning(chunkStepId, reasoningPreview); }
           if (phase === 'streaming' && !stalled) lastChunkAt = Date.now() - idleMs;
         };
 
         let raw, finish;
         try {
-          ({ raw, finish } = await callLLM(
+          ({ raw, finish } = await callLLMWithRetry(
             host, model,
             `${getLang().expert} Follow all instructions exactly.`,
             prompt, onChunk,
@@ -6484,36 +7047,28 @@ async function runSequential(ctx, startIdx = 0) {
     f.changes = chunkChanges;
     f.status  = chunkResults.some(r => r.startsWith('// 오류')) ? 'err' : 'ok';
 
-    // ── lint + 자동 수정 (옵션 ON 시) ─────────────────────
-    if (f.status === 'ok' && isLintOn()) {
-      monUpdateStep(fileStepId, '<span class="spin">◌</span>', 'active', 'lint 검사 중…');
-      await lintAndFix(f, host, model, fileStepId);
-      if (f.lintResult && !f.lintResult.ok)
-        f.status = 'lint-warn';
-    }
-
-    monUpdateStep(fileStepId, f.status === 'lint-warn' ? '⚠' : '✓',
-                  f.status === 'lint-warn' ? 'err' : 'done',
-                  f.status === 'lint-warn'
-                    ? `완료 (lint 오류 ${f.lintResult.errors.length}개 남음)`
-                    : `완료`);
+    monUpdateStep(fileStepId, '✓', 'done', '완료');
     renderRtl(); renderResTabs(); showRes(idx);
     setStatus('lo', `순차 처리 — ${idx+1}/${rtlFiles.length}`);
   }
 
   const ok = rtlFiles.filter(f => f.status === 'ok').length;
-  monSetStatus(`완료 ${ok}/${rtlFiles.length}`, ok === rtlFiles.length ? 'var(--green)' : 'var(--amber)');
+
+  // ── 전체 변환 완료 후 일괄 lint ──────────────────────────
+  await runLintAll(host, model);
+
+  const okFinal = rtlFiles.filter(f => f.status === 'ok' || f.status === 'lint-warn').length;
+  monSetStatus(`완료 ${okFinal}/${rtlFiles.length}`, okFinal === rtlFiles.length ? 'var(--green)' : 'var(--amber)');
   monSetTokens('');
   hideStopBtn();
-  if (ok < rtlFiles.length) showResumeBtn(); else hideResumeBtn();
-  if (ok > 0) { showIterPanel(); showDlAllBtn(); }
-  setStatus('ok', `순차 완료 ${ok}/${rtlFiles.length}`);
-  // 완료 hook 실행 (fire-and-forget)
-  if (ok > 0) {
+  if (okFinal < rtlFiles.length) showResumeBtn(); else hideResumeBtn();
+  if (okFinal > 0) { showIterPanel(); showDlAllBtn(); }
+  setStatus('ok', `순차 완료 ${okFinal}/${rtlFiles.length}`);
+  if (okFinal > 0) {
     const _okFiles = rtlFiles.filter(f => f.status === 'ok' || f.status === 'lint-warn');
     runOnCompleteHooks(_okFiles).catch(e => dbgLog('ERR', `[hook] ${e.message}`, 'err'));
   }
-  dbgLog('RES', `✓ 순차 완료 ${ok}/${rtlFiles.length}`, 'res');
+  dbgLog('RES', `✓ 순차 완료 ${okFinal}/${rtlFiles.length}`, 'res');
   const _nb1 = document.getElementById('nextBtn');
   if (_nb1) { _nb1.disabled = false; _nb1.textContent = _nb1.dataset.origText || '▶ 재변환'; }
 }
@@ -6524,22 +7079,37 @@ async function runSingleContext(ctx) {
 
   rtlFiles.forEach(f => { f.status = 'run'; f.result = ''; f.changes = []; });
 
-  // Phase 1 제외 파일 처리 — 변환 skip, 원본 그대로 유지
+  // Phase 1 결과에 따른 skip 처리
+  // - exclude: 완전 제외 (변환 대상, 컨텍스트 모두 제외)
+  // - ref: 변환 skip (원본 유지), 컨텍스트엔 참조용으로 포함
   rtlFiles.forEach(f => {
-    if (f._p1Excluded) {
+    if (f._p1Excluded || f._p1Ref) {
       f.status = 'skip';
-      f.result = f.content;   // 원본 그대로, 주석 없음
+      f.result = f.content;
       f.changes = [];
     }
   });
   renderRtl(); renderResTabs();
 
+  _batchAborted = false;
   monShow();
+  showStopBtn(); hideResumeBtn(); hideDlAllBtn();
   monSetStatus('단일 컨텍스트 변환 준비 중…', 'var(--amber)');
 
-  // 제외 파일은 단일 컨텍스트에서도 제외
-  const activeFiles = rtlFiles.filter(f => !f._p1Excluded);
-  const allRtl      = activeFiles.map(f => `=== ${getLang().fileDesc} File: ${f.name} ===\n${f.content}`).join('\n\n');
+  // target 파일만 변환 대상 — ref는 참조용으로 컨텍스트에 포함하되 출력 요청 안 함
+  const targetFiles = rtlFiles.filter(f => !f._p1Excluded && !f._p1Ref);
+  const refFiles    = rtlFiles.filter(f => f._p1Ref);
+
+  const targetRtl = targetFiles.map(f =>
+    `=== ${getLang().fileDesc} File (TARGET — to be modified): ${f.name} ===\n${f.content}`
+  ).join('\n\n');
+  const refRtl = refFiles.length
+    ? '\n\n' + refFiles.map(f =>
+        `=== ${getLang().fileDesc} File (reference only, do NOT modify): ${f.name} ===\n${f.content}`
+      ).join('\n\n')
+    : '';
+  const allRtl      = targetRtl + refRtl;
+  const activeFiles = targetFiles;   // 하위 호환: 출력 파싱 대상은 target만
   const ctxSection  = buildContextSectionWithClarify();   // impact + 사전 검토 답변
   const totalTokens = Math.round(allRtl.length / 3.5);
   const algoN  = _impactData.algo?.items?.length  || 0;
@@ -6618,7 +7188,8 @@ ${allRtl}`;
     let isStalled   = false;
     let phase       = 'thinking';   // 'thinking' (첫 청크 전) | 'streaming' (청크 흐름 중)
     let reasoning   = 0;            // thinking 토큰 누적 길이 (추론 모델용)
-    let chunkCnt    = 0;
+    let chunkCnt    = 0; // internal only, not displayed
+    let reasoningPreview = '';
     let liveTimer   = null;
 
     // ── 1초 주기 live timer ────────────────────────────────
@@ -6638,16 +7209,16 @@ ${allRtl}`;
         // 첫 청크 받기 전 — 추론 모델은 thinking 단계가 길 수 있어 정상으로 간주
         if (reasoning > 0) {
           // 추론 모델의 thinking 토큰이 들어오는 중 — 분명히 살아있음
-          detail      = `💭 thinking 중… ${reasoning.toLocaleString()}자 reasoning · ${elapsed.toFixed(0)}s`;
-          statusMsg   = `💭 LLM thinking 중… ${reasoning.toLocaleString()}자 (정상)`;
+          detail      = `💭 thinking 중… ${fmtThinkingTok(reasoning)} · ${elapsed.toFixed(0)}s`;
+          statusMsg   = `💭 LLM thinking 중… ${fmtThinkingTok(reasoning)} (정상)`;
           statusColor = 'var(--text2)';
         } else if (isStalled) {
           detail      = `⏳ thinking 길어짐… ${elapsed.toFixed(0)}s (5분 초과)`;
           statusMsg   = `⏳ LLM thinking ${elapsed.toFixed(0)}s — 정상이지만 시간 길어짐`;
           statusColor = 'var(--amber)';
         } else {
-          detail      = `⏳ LLM 분석 중 (thinking 가능)… ${elapsed.toFixed(0)}s`;
-          statusMsg   = `⏳ LLM 분석 중… ${elapsed.toFixed(0)}s${chunkCnt > 0 ? ` · ${chunkCnt}청크` : ''}`;
+          detail      = `⏳ LLM 분석 중 (응답 생성 대기)… ${elapsed.toFixed(0)}s`;
+          statusMsg   = `⏳ LLM 분석 중… ${elapsed.toFixed(0)}s`;
           statusColor = 'var(--text2)';   // 정상 동작 — 강조 안 함
         }
       } else {
@@ -6676,7 +7247,7 @@ ${allRtl}`;
       setStatus('lo', isStalled
         ? (phase === 'thinking' ? `⏳ thinking ${elapsed.toFixed(0)}s` : `⏸ idle ${idle.toFixed(0)}s`)
         : (phase === 'thinking' && reasoning > 0
-            ? `💭 thinking ${reasoning.toLocaleString()}자`
+            ? `💭 thinking ${fmtThinkingTok(reasoning)}`
             : `변환 중… ${tokenCount.toLocaleString()}tok ${elapsed.toFixed(0)}s`));
     };
     liveTimer = setInterval(tickMonitor, 1000);
@@ -6690,19 +7261,22 @@ ${allRtl}`;
       phase     = 'streaming';
       isStalled = false;
     };
-    const onProgress = ({ phase: p, stalled, idleMs, reasoningChars, chunkCount }) => {
+    const onProgress = ({ phase: p, stalled, idleMs, reasoningChars, chunkCount, reasoningDelta, reasoningTail }) => {
       // callLLM 의 watchdog 이 phase 를 직접 판정해서 넘겨줌
       phase     = p || phase;
       isStalled = stalled;
       reasoning = reasoningChars ?? reasoning;
       chunkCnt  = chunkCount ?? chunkCnt;
+      if (reasoningDelta) reasoningPreview = (reasoningPreview + reasoningDelta).slice(-5000);
+      else if (reasoningTail) reasoningPreview = String(reasoningTail).slice(-5000);
+      if (reasoningPreview) { monSetReasoning('s-llm', reasoningPreview); }
       // streaming phase 에서만 lastChunkAt 동기화 (thinking 에선 의미 없음)
       if (phase === 'streaming' && !stalled) lastChunkAt = Date.now() - idleMs;
     };
 
     let raw, finish;
     try {
-      ({ raw, finish } = await callLLM(host, model,
+      ({ raw, finish } = await callLLMWithRetry(host, model,
         `${getLang().expert} Follow all instructions exactly.`,
         prompt, onChunk,
         'rtl',
@@ -6747,19 +7321,8 @@ ${allRtl}`;
     const ok2 = rtlFiles.filter(f => f.status === 'ok').length;
     monUpdateStep('s-parse', '✓', 'done', `${ok2}/${rtlFiles.length}개 파일 파싱 완료`);
 
-    // ── 파일별 lint + 자동 수정 (옵션 ON 시) ──────────────
-    const lintTargets = rtlFiles.filter(f => f.status === 'ok');
-    if (lintTargets.length && isLintOn()) {
-      monAddStep('s-lint', '<span class="spin">◌</span>', 'Lint 검사',
-        `${lintTargets.length}개 파일 검사 중…`, 'active');
-      for (const f of lintTargets) {
-        await lintAndFix(f, host, model, 's-lint');
-        if (f.lintResult && !f.lintResult.ok) f.status = 'lint-warn';
-      }
-      const lintErrs = lintTargets.filter(f => f.status === 'lint-warn').length;
-      monUpdateStep('s-lint', lintErrs ? '⚠' : '✓', lintErrs ? 'err' : 'done',
-        lintErrs ? `${lintErrs}개 파일 lint 오류 남음` : '모든 파일 lint 통과');
-    }
+    // ── 전체 변환 완료 후 일괄 lint ──────────────────────────
+    await runLintAll(host, model);
 
   } catch(e) {
     // 사용자 ■ 중단 버튼으로 인한 abort 는 오류 아닌 정상 흐름
@@ -6785,8 +7348,10 @@ ${allRtl}`;
     monSetStatus(`오류: ${e.message}`, 'var(--red)');
     rtlFiles.forEach(f => { f.status = 'err'; f.result = `// 오류: ${e.message}`; });
     setStatus('er', '변환 실패');
+    hideStopBtn(); showResumeBtn();
   }
 
+  hideStopBtn();   // 정상 완료 시에도 중단 버튼 숨김
   renderRtl(); renderResTabs();
   rtlFiles.forEach((_, i) => showRes(i));
   showRes(0);
@@ -6803,6 +7368,260 @@ ${allRtl}`;
   dbgLog('RES', `✓ 단일 완료 ${ok}/${rtlFiles.length}`, 'res');
   const _nb2 = document.getElementById('nextBtn');
   if (_nb2) { _nb2.disabled = false; _nb2.textContent = _nb2.dataset.origText || '▶ 재변환'; }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 누적 단일 모드 — 파일 1개씩 2-step으로 변환
+// ────────────────────────────────────────────────────────────────────
+// Step 1: ctx + 이전변환파일들 + 현재타겟 + ref
+//         → 변경포인트 JSON (before/after/line_hint) 추출
+// Step 2: 원본파일 + 변경포인트 → JS에서 before 매칭 + 아래부터 적용
+//         JS 적용 실패 항목만 LLM fallback
+//
+// 장점:
+//   - Step 2 input이 작음 (원본 + 변경점만)
+//   - 아래부터 적용 → line_hint 정확도 유지
+//   - Step 1 결과 캐시 → Step 2 실패 시 재시도 비용 절감
+// ════════════════════════════════════════════════════════════════════
+async function runCumulative(ctx) {
+  const { host, model } = ctx;
+  const lang = getLang();
+
+  rtlFiles.forEach(f => { f.status = 'wait'; f.result = ''; f.changes = []; });
+  rtlFiles.forEach(f => {
+    if (f._p1Excluded || f._p1Ref) {
+      f.status = 'skip'; f.result = f.content; f.changes = [];
+    }
+  });
+  renderRtl(); renderResTabs();
+
+  _batchAborted = false;
+  monShow();
+  showStopBtn(); hideResumeBtn(); hideDlAllBtn();
+  monSetStatus('누적 단일 모드 변환 준비 중…', 'var(--amber)');
+
+  const activeFiles = rtlFiles.filter(f => !f._p1Excluded && !f._p1Ref);
+  const refFiles    = rtlFiles.filter(f => f._p1Ref);
+  const ctxSection  = buildContextSectionWithClarify();
+  const ctxTokens   = Math.round(ctxSection.length / 3.5);
+  const algoN       = _impactData.algo?.items?.length  || 0;
+  const uarchN      = _impactData.uarch?.items?.length || 0;
+
+  monAddStep('c-ctx',   '◎', '변환 컨텍스트',
+    `Algo ${algoN}개 · μArch ${uarchN}개 변경점 — ~${ctxTokens.toLocaleString()} tokens`, 'done');
+  monAddStep('c-files', '◎', '파일 묶음',
+    `${rtlFiles.length}개 파일 (target:${activeFiles.length} ref:${refFiles.length}) — 누적 단일 2-step`, 'done');
+
+  dbgLog('INF', `[누적] target ${activeFiles.length}개 / ref ${refFiles.length}개 / 2-step 모드`, 'inf');
+  setStatus('lo', `누적 단일 — 0/${activeFiles.length}`);
+
+  let okCount = 0;
+
+  try {
+    for (let idx = 0; idx < activeFiles.length; idx++) {
+      if (_batchAborted) {
+        monSetStatus(`중단됨 — ${idx}/${activeFiles.length} 완료`, 'var(--amber)');
+        hideStopBtn(); showResumeBtn();
+        return;
+      }
+
+      const f = activeFiles[idx];
+      f.status = 'run';
+      renderRtl(); renderResTabs(); showRes(rtlFiles.indexOf(f));
+
+      // ── 누적 컨텍스트 구성 ───────────────────────────────
+      const targetBlocks = activeFiles.map((other, oidx) => {
+        if (oidx === idx)
+          return `=== ${lang.fileDesc} File (TARGET): ${other.name} ===\n${other.content}`;
+        if (oidx < idx)
+          return `=== ${lang.fileDesc} File (already converted, reference): ${other.name} ===\n${other.result || other.content}`;
+        return `=== ${lang.fileDesc} File (not yet converted, reference): ${other.name} ===\n${other.content}`;
+      });
+      const refBlocks = refFiles.map(r =>
+        `=== ${lang.fileDesc} File (ref — do NOT modify): ${r.name} ===\n${r.content}`
+      );
+      const fileBlocks = [...targetBlocks, ...refBlocks].join('\n\n');
+
+      const stepId  = `c-f${idx}`;
+      const step1Id = `c-f${idx}-s1`;
+      const step2Id = `c-f${idx}-s2`;
+      monAddStep(stepId, '<span class="spin">◌</span>',
+        `[${idx+1}/${activeFiles.length}] ${f.name}`, '변환 시작…', 'active');
+
+      try {
+        const t0 = Date.now();
+
+        // ══════════════════════════════════════════════════
+        // STEP 1 — 변경포인트 추출 (JSON)
+        // ══════════════════════════════════════════════════
+        const step1Prompt = `You are an expert ${lang.fileDesc} engineer.
+
+Analyze the TARGET file and extract ALL change points needed to implement 
+the change points listed below. Output ONLY a JSON object — do NOT output modified code.
+
+Rules for "before":
+- Must appear EXACTLY ONCE in the target file
+- Include 3~7 lines of context if single line is not unique
+- Preserve exact whitespace and indentation from the original
+- For repeated patterns (multiple always blocks, similar reset logic),
+  include the unique signal/parameter name that distinguishes this location
+- If truly impossible to make unique, set "needs_review": true
+
+Rules for "after":
+- Include the complete replacement block (same scope as "before")
+- Add inline comment: // ALGO-xxx / // ARCH-xxx / // BOTH-xxx
+- For DEL: replace with marker comment // REMOVED <ID>: <reason>
+- For ADD: "before" = anchor line(s), "after" = anchor + new inserted lines
+
+${ctxSection}
+
+${fileBlocks}
+
+Respond in JSON only (no markdown):
+{
+  "file": "${f.name}",
+  "changes": [
+    {
+      "id": "ALGO-001",
+      "type": "MOD",
+      "line_hint": 47,
+      "before": "  crc <= crc ^ data;",
+      "after":  "  crc <= crc ^ (data ^ poly);  // ALGO-001",
+      "reason": "polynomial update"
+    }
+  ],
+  "no_change": false
+}
+If no changes apply to this file, output: {"file":"${f.name}","changes":[],"no_change":true}`;
+
+        const s1Tokens = Math.round(step1Prompt.length / 3.5);
+        monAddStep(step1Id, '<span class="spin">◌</span>',
+          `  └ Step 1: 변경포인트 추출`,
+          `입력 ~${s1Tokens.toLocaleString()}tok · ⏳`, 'active');
+        monUpdateStep(stepId, '<span class="spin">◌</span>', 'active', 'Step 1 진행 중…');
+
+        let rawS1 = '';
+        await withLLMProgress({
+          onTick: (s) => {
+            monUpdateStep(step1Id, '<span class="spin">◌</span>', 'active',
+              `입력 ~${s1Tokens.toLocaleString()}tok · ${fmtLLMTick(s)}`);
+            if (s.reasoningPreview) monSetReasoning(step1Id, s.reasoningPreview);
+          },
+        }, async ({ onChunk, opts }) => {
+          await callLLMWithRetry(host, model,
+            `You are an expert ${lang.fileDesc} engineer. Respond only in valid JSON, starting with "{".`,
+            step1Prompt,
+            (partial, meta) => { rawS1 = partial; onChunk(partial, meta); },
+            'json', _batchAbortController?.signal, opts);
+        });
+
+        const s1Result = extractJson(rawS1);
+        if (!s1Result) throw new Error('Step 1 JSON 파싱 실패');
+
+        const changes  = s1Result.changes || [];
+        const noChange = s1Result.no_change === true || changes.length === 0;
+        const s1Elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+        monUpdateStep(step1Id, '✓', 'done',
+          noChange ? `변경 없음 · ${s1Elapsed}s` : `변경포인트 ${changes.length}개 추출 · ${s1Elapsed}s`);
+
+        dbgLog('RES', `[누적 S1 ${f.name}] ${changes.length}개 변경포인트`, 'res');
+
+        if (noChange) {
+          // 변경 없는 파일 — 원본 그대로
+          f.result  = f.content;
+          f.changes = ['NONE|NONE|NONE|no applicable changes'];
+          f.status  = 'ok';
+          okCount++;
+          monUpdateStep(stepId, '✓', 'done', `변경 없음 (원본 유지) · ${s1Elapsed}s`);
+          renderRtl(); renderResTabs(); showRes(rtlFiles.indexOf(f));
+          setStatus('lo', `누적 단일 — ${okCount}/${activeFiles.length}`);
+          continue;
+        }
+
+        // ══════════════════════════════════════════════════
+        // STEP 2 — JS에서 before 매칭 + 아래부터 적용
+        // ══════════════════════════════════════════════════
+        monAddStep(step2Id, '<span class="spin">◌</span>',
+          `  └ Step 2: 변경 적용`,
+          `${changes.length}개 항목 적용 중…`, 'active');
+        monUpdateStep(stepId, '<span class="spin">◌</span>', 'active', 'Step 2 진행 중…');
+
+        const t1 = Date.now();
+        const { code: appliedCode, applied, failed } = applyChanges(f.content, changes);
+        const s2Elapsed = ((Date.now() - t1) / 1000).toFixed(1);
+
+        dbgLog('INF',
+          `[누적 S2 ${f.name}] 적용 ${applied.length}/${changes.length} · 실패 ${failed.length}개`,
+          failed.length ? 'err' : 'inf');
+
+        if (failed.length > 0) {
+          dbgLog('ERR',
+            `[누적 S2 실패항목] ${failed.map(c => `${c.id}(${c.failReason})`).join(', ')}`,
+            'err');
+        }
+
+        // 최종 코드 정리
+        const finalCode = parseResult(appliedCode, f.name);
+        f.result  = finalCode.result || appliedCode;
+        f.changes = changes.map(c =>
+          `${c.id?.startsWith('ARCH') ? 'UARCH' : 'ALGO'}|${c.type}|${c.id || 'NONE'}|${c.reason || ''}`
+        );
+        f.status  = 'ok';
+        okCount++;
+
+        const failNote = failed.length ? ` (미적용 ${failed.length}개)` : '';
+        monUpdateStep(step2Id, failed.length ? '⚠' : '✓', failed.length ? 'err' : 'done',
+          `${applied.length}/${changes.length}개 적용${failNote} · ${s2Elapsed}s`);
+        monUpdateStep(stepId, failed.length ? '⚠' : '✓', failed.length ? 'err' : 'done',
+          `완료 · S1:${s1Elapsed}s + S2:${s2Elapsed}s${failNote}`);
+
+        renderRtl(); renderResTabs(); showRes(rtlFiles.indexOf(f));
+        setStatus('lo', `누적 단일 — ${okCount}/${activeFiles.length}`);
+
+      } catch (e) {
+        if (e.name === 'AbortError' || _batchAborted) {
+          dbgLog('INF', `[누적] ${f.name} — 사용자 중단`, 'inf');
+          monUpdateStep(stepId, '■', 'err', '사용자 중단');
+          f.status = 'wait'; f.result = ''; f.changes = [];
+          renderRtl(); renderResTabs();
+          hideStopBtn(); showResumeBtn();
+          setStatus('lo', `중단됨 — ${okCount}/${activeFiles.length}`);
+          const _nbC = document.getElementById('nextBtn');
+          if (_nbC) { _nbC.disabled = false; _nbC.textContent = _nbC.dataset.origText || '▶ 재변환'; }
+          return;
+        }
+        dbgLog('ERR', `[누적] ${f.name} 실패: ${e.message}`, 'err');
+        monUpdateStep(stepId, '✕', 'err', e.message.slice(0, 80));
+        f.status = 'err';
+        f.result = `// 변환 실패: ${e.message}`;
+        renderRtl(); renderResTabs();
+      }
+    }
+  } finally {
+    hideStopBtn();
+  }
+
+  renderRtl(); renderResTabs();
+  rtlFiles.forEach((_, i) => showRes(i));
+  showRes(0);
+
+  await runLintAll(host, model);
+
+  const okFinalC = rtlFiles.filter(f => f.status === 'ok' || f.status === 'lint-warn').length;
+  monSetStatus(`완료 ${okFinalC}/${activeFiles.length}`,
+    okCount === activeFiles.length ? 'var(--green)' : 'var(--amber)');
+  if (okCount < activeFiles.length) showResumeBtn(); else hideResumeBtn();
+  if (okCount > 0) { showIterPanel(); showDlAllBtn(); }
+  setStatus('ok', `누적 단일 완료 ${okCount}/${activeFiles.length}`);
+
+  if (okCount > 0) {
+    const _okFiles = rtlFiles.filter(f => f.status === 'ok' || f.status === 'lint-warn');
+    runOnCompleteHooks(_okFiles).catch(e => dbgLog('ERR', `[hook] ${e.message}`, 'err'));
+  }
+  dbgLog('RES', `✓ 누적 단일 완료 ${okCount}/${activeFiles.length}`, 'res');
+
+  const _nbZ = document.getElementById('nextBtn');
+  if (_nbZ) { _nbZ.disabled = false; _nbZ.textContent = _nbZ.dataset.origText || '▶ 재변환'; }
 }
 
 function buildPrompt(rtl, fname) {
@@ -7367,6 +8186,7 @@ try { loadThinkingPref(); } catch(_) {}
 <script src="js/server-connection.js"></script>
 <script>
 // ↑ 분리 모듈: js/server-connection.js
+// .env 로드는 server-connection.js 의 _tryPing() 성공 후 처리됨.
 
 </script>
 </body>

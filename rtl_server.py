@@ -141,8 +141,10 @@ def append_log(entry: dict) -> int:
         except Exception:
             logs = []
 
-    # REQUEST/RESPONSE 쌍 관리
-    if entry.get("req_id") and entry.get("status") == "RESPONSE":
+    # REQUEST/RESPONSE/STREAM_* 쌍 관리
+    # 스트리밍 중 에러/타임아웃이 발생하면 RESPONSE가 저장되지 않으므로,
+    # STREAM_CHECKPOINT / STREAM_ERROR / STREAM_TIMEOUT도 같은 req_id 항목을 갱신한다.
+    if entry.get("req_id") and entry.get("status") != "REQUEST":
         for i, e in enumerate(logs):
             if e.get("req_id") == entry["req_id"]:
                 logs[i] = {**e, **entry}
@@ -459,29 +461,66 @@ async def lint_code(body: LintRequest):
             capture_output=True, text=True, timeout=30
         )
         output = (result.stderr or result.stdout or "").strip()
-        log.info(f"[lint] {linter} files={len(all_paths)} target={target_name} exit={result.returncode}  {output[:120]}")
+        log.info(f"[lint] {linter} files={len(all_paths)} target={target_name or '(all)'} exit={result.returncode}  {output[:120]}")
 
-        # === 결과 파싱 — 타깃 파일 경로의 오류만 필터링 ===
-        # 다른 파일의 오류는 사용자가 변환 안 한 파일이라 무관.
-        errors, warnings = [], []
-        target_basename = os.path.basename(target_path) if target_path else ""
+        # === 결과 파싱 ===
+        # 파일명 → {errors, warnings} 맵으로 수집 후
+        # target 지정 시 해당 파일만, 없으면 전체 맵 반환.
+        file_map: dict[str, dict] = {}
+        for f in files:
+            bn = _safe_name(f.name)
+            if not os.path.splitext(bn)[1]:
+                bn += default_ext
+            file_map[bn] = {"errors": [], "warnings": []}
+
         for m in re.finditer(
             r"^(.*?):(\d+):(?:(\d+):)?\s*(error|warning|note):\s*(.+)$",
             output, re.IGNORECASE | re.MULTILINE
         ):
             file_in_msg = os.path.basename(m.group(1).strip())
-            # 타깃 파일에서 발생한 오류만 수집
-            if file_in_msg != target_basename:
+            if file_in_msg not in file_map:
                 continue
             item = {"line": int(m.group(2)),
                     "col":  int(m.group(3) or 0),
                     "msg":  m.group(5).strip()}
-            (errors if m.group(4).lower() == "error" else warnings).append(item)
+            key = "errors" if m.group(4).lower() == "error" else "warnings"
+            file_map[file_in_msg][key].append(item)
 
-        return {"ok": len(errors) == 0,
-                "errors": errors, "warnings": warnings,
+        # target 지정 → 단일 파일 결과 반환 (기존 호환)
+        if body.target:
+            target_basename = os.path.basename(target_path) if target_path else ""
+            fdata = file_map.get(target_basename, {"errors": [], "warnings": []})
+            return {"ok": len(fdata["errors"]) == 0,
+                    "errors": fdata["errors"], "warnings": fdata["warnings"],
+                    "raw": output, "linter": linter,
+                    "files_count": len(all_paths)}
+
+        # target 미지정 → 전체 파일별 오류 맵 반환 (all 모드)
+        # 클라이언트의 원본 파일명으로 매핑 (safe_name 역변환)
+        name_map = {}  # safe_basename → original_name
+        for f in files:
+            bn = _safe_name(f.name)
+            if not os.path.splitext(bn)[1]:
+                bn += default_ext
+            name_map[bn] = f.name
+
+        file_results = {}
+        for bn, fdata in file_map.items():
+            orig_name = name_map.get(bn, bn)
+            file_results[orig_name] = {
+                "ok":       len(fdata["errors"]) == 0,
+                "errors":   fdata["errors"],
+                "warnings": fdata["warnings"],
+            }
+
+        total_errors = sum(len(v["errors"]) for v in file_results.values())
+        log.info(f"[lint-all] 완료 — {len(file_results)}개 파일, 총 오류 {total_errors}개")
+        return {"mode": "all",
+                "ok": total_errors == 0,
+                "file_results": file_results,
                 "raw": output, "linter": linter,
-                "files_count": len(all_paths)}
+                "files_count": len(all_paths),
+                "_linter": linter}
 
     except subprocess.TimeoutExpired:
         return {"ok": False, "errors": [{"line": 0, "col": 0,

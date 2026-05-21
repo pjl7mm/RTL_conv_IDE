@@ -49,11 +49,13 @@ function appendLog(entry) {
   let arr = [];
   try { if (fs.existsSync(LOG)) arr = JSON.parse(fs.readFileSync(LOG, 'utf8')); } catch {}
 
-  // REQUEST/RESPONSE 쌍 관리: req_id 기준으로 업데이트 또는 추가
-  if (entry.req_id && entry.status === 'RESPONSE') {
+  // REQUEST/RESPONSE/STREAM_* 쌍 관리: req_id 기준으로 업데이트 또는 추가
+  // 스트리밍 중 에러/타임아웃이 발생하면 RESPONSE가 저장되지 않으므로,
+  // STREAM_CHECKPOINT / STREAM_ERROR / STREAM_TIMEOUT도 같은 req_id 항목을 갱신한다.
+  if (entry.req_id && entry.status !== 'REQUEST') {
     const idx = arr.findIndex(e => e.req_id === entry.req_id);
     if (idx >= 0) {
-      arr[idx] = { ...arr[idx], ...entry };  // REQUEST 항목을 RESPONSE로 업데이트
+      arr[idx] = { ...arr[idx], ...entry };
       fs.writeFileSync(LOG, JSON.stringify(arr, null, 2), 'utf8');
       return arr.length;
     }

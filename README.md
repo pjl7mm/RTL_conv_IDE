@@ -104,6 +104,17 @@ curl -X POST http://your-host:8080/api/auto-run
 
 ## 주요 기능
 
+### Thinking / Reasoning 모드 (선택)
+
+LLM이 추론 과정을 거치는 **thinking/reasoning** 기능을 선택적으로 활성화할 수 있습니다:
+
+- **활성화:** UI의 `Enable Thinking` 체크박스로 토글
+- **예산 설정:** thinking 단계의 최대 토큰 수를 제한 (reasoning loop 방지)
+- **호환성:** GLM-4.7, Claude 등 thinking 지원 모델과 호환
+- **비용:** thinking 단계의 토큰도 계산되므로 총 비용 증가 (정확도 향상으로 iteration 감소)
+
+모든 단계(분석 / 요약 / 변환)에서 동일하게 적용됩니다.
+
 ### 전체 변환 플로우 (7단계)
 
 ```
