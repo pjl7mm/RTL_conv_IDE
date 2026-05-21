@@ -1,0 +1,7 @@
+.DS_Store
+.serena/
+logs/
+files/
+__pycache__/
+*.pyc
+.env

@@ -1,0 +1,43 @@
+services:
+  rtl-converter:
+    build: .
+    image: rtl-converter:latest
+    container_name: rtl-converter
+    # ⚠️  단일 컨테이너 / 단일 워커로만 운영하세요.
+    # /api/auto-run-* 명령 큐가 in-memory deque 이므로 replicas > 1 또는
+    # uvicorn --workers > 1 설정 시 외부 자동화 명령이 손실/오작동합니다.
+    # 부하 분산이 필요하면 nginx 앞단 / 별도 큐 시스템(Redis 등)을 도입하세요.
+    deploy:
+      replicas: 1
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      # .env — LLM 서버 설정 (필수)
+      - ./.env:/app/.env:ro
+      # LLM 로그 저장 위치
+      - ./logs:/app/logs
+      # hooks 설정 (선택)
+      - ./rtl-converter-hooks.js:/app/rtl-converter-hooks.js:ro
+      # config 튜닝 (선택)
+      - ./rtl-converter-config.js:/app/rtl-converter-config.js:ro
+    environment:
+      - PORT=8080
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── WSL 인트라넷 환경에서는 아래 nginx 프록시 추가 가능 ────
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - ./certs:/etc/nginx/certs:ro
+  #   depends_on:
+  #     - rtl-converter
