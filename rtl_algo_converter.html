@@ -7539,41 +7539,70 @@ If no changes apply to this file, output: {"file":"${f.name}","changes":[],"no_c
         }
 
         // ══════════════════════════════════════════════════
-        // STEP 2 — JS에서 before 매칭 + 아래부터 적용
+        // STEP 2 — 원본 코드 + 변경포인트 → LLM이 최종 코드 출력
         // ══════════════════════════════════════════════════
+        const changesJson = JSON.stringify(changes, null, 2);
+        const step2Prompt = `You are an expert ${lang.fileDesc} engineer.
+
+Apply ALL the change points listed below to the original file and output the complete modified file.
+
+Rules:
+- Output the COMPLETE file — do not omit any unchanged lines
+- Preserve original indentation, whitespace, and formatting EXACTLY
+- Add inline comment for each applied change: // ALGO-xxx / // ARCH-xxx
+- Do NOT add extra blank lines or reformat unchanged code
+- After the code, append a ===CHANGES=== section listing each applied change
+
+=== Original File: ${f.name} ===
+${f.content}
+
+=== Change Points (from Step 1 analysis) ===
+${changesJson}
+
+Output format:
+<complete modified code>
+===CHANGES===
+ALGO|MOD|ALGO-001|description
+UARCH|ADD|ARCH-002|description`;
+
+        const s2Tokens = Math.round(step2Prompt.length / 3.5);
         monAddStep(step2Id, '<span class="spin">◌</span>',
-          `  └ Step 2: 변경 적용`,
-          `${changes.length}개 항목 적용 중…`, 'active');
+          `  └ Step 2: LLM 변경 적용`,
+          `입력 ~${s2Tokens.toLocaleString()}tok · ⏳`, 'active');
         monUpdateStep(stepId, '<span class="spin">◌</span>', 'active', 'Step 2 진행 중…');
 
+        let rawS2 = '';
         const t1 = Date.now();
-        const { code: appliedCode, applied, failed } = applyChanges(f.content, changes);
+        await withLLMProgress({
+          onTick: (s) => {
+            monUpdateStep(step2Id, '<span class="spin">◌</span>', 'active',
+              `입력 ~${s2Tokens.toLocaleString()}tok · ${fmtLLMTick(s)}`);
+            if (s.reasoningPreview) monSetReasoning(step2Id, s.reasoningPreview);
+          },
+        }, async ({ onChunk, opts }) => {
+          await callLLMWithRetry(host, model,
+            `You are an expert ${lang.fileDesc} engineer. Output the complete modified file followed by ===CHANGES===.`,
+            step2Prompt,
+            (partial, meta) => { rawS2 = partial; onChunk(partial, meta); },
+            'rtl', _batchAbortController?.signal, opts);
+        });
+
         const s2Elapsed = ((Date.now() - t1) / 1000).toFixed(1);
-
-        dbgLog('INF',
-          `[누적 S2 ${f.name}] 적용 ${applied.length}/${changes.length} · 실패 ${failed.length}개`,
-          failed.length ? 'err' : 'inf');
-
-        if (failed.length > 0) {
-          dbgLog('ERR',
-            `[누적 S2 실패항목] ${failed.map(c => `${c.id}(${c.failReason})`).join(', ')}`,
-            'err');
-        }
+        dbgLog('RES', `[누적 S2 ${f.name}] LLM 변경 적용 완료 · ${s2Elapsed}s`, 'res');
 
         // 최종 코드 정리
-        const finalCode = parseResult(appliedCode, f.name);
-        f.result  = finalCode.result || appliedCode;
-        f.changes = changes.map(c =>
-          `${c.id?.startsWith('ARCH') ? 'UARCH' : 'ALGO'}|${c.type}|${c.id || 'NONE'}|${c.reason || ''}`
-        );
+        const finalCode = parseResult(rawS2, f.name);
+        f.result  = finalCode.result || rawS2;
+        f.changes = finalCode.changes.length
+          ? finalCode.changes
+          : changes.map(c =>
+              `${c.id?.startsWith('ARCH') ? 'UARCH' : 'ALGO'}|${c.type}|${c.id || 'NONE'}|${c.reason || ''}`
+            );
         f.status  = 'ok';
         okCount++;
 
-        const failNote = failed.length ? ` (미적용 ${failed.length}개)` : '';
-        monUpdateStep(step2Id, failed.length ? '⚠' : '✓', failed.length ? 'err' : 'done',
-          `${applied.length}/${changes.length}개 적용${failNote} · ${s2Elapsed}s`);
-        monUpdateStep(stepId, failed.length ? '⚠' : '✓', failed.length ? 'err' : 'done',
-          `완료 · S1:${s1Elapsed}s + S2:${s2Elapsed}s${failNote}`);
+        monUpdateStep(step2Id, '✓', 'done', `완료 · ${s2Elapsed}s`);
+        monUpdateStep(stepId, '✓', 'done', `완료 · S1:${s1Elapsed}s + S2:${s2Elapsed}s`);
 
         renderRtl(); renderResTabs(); showRes(rtlFiles.indexOf(f));
         setStatus('lo', `누적 단일 — ${okCount}/${activeFiles.length}`);
